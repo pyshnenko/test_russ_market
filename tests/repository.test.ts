@@ -1,15 +1,39 @@
 import assert from "node:assert/strict";
 import { randomUUID } from "node:crypto";
-import { after, test } from "node:test";
+import { after, before, test } from "node:test";
+import { setTimeout as delay } from "node:timers/promises";
+import { createConnection, type RowDataPacket } from "mysql2/promise";
 import { closeScheduleDatabase, withScheduleDatabase } from "../lib/db/schedule-database";
 import { loadSchedule, persistSchedule } from "../lib/repository";
 import { schedulePageResponseSchema, shiftKey, type Shift } from "../lib/schedule";
 import { loadSchedulePage, schedulePageSchema } from "../lib/schedule-page";
 
-if (process.env.SCHEDULE_TEST_DATABASE_URL) process.env.DATABASE_URL = process.env.SCHEDULE_TEST_DATABASE_URL;
+const testUrl = process.env.SCHEDULE_TEST_DATABASE_URL;
+const mysqlTest = testUrl?.startsWith("mysql:");
+if (testUrl) process.env.DATABASE_URL = testUrl;
 else delete process.env.DATABASE_URL;
 process.env.SCHEDULE_SQLITE_PATH = ":memory:";
 after(closeScheduleDatabase);
+
+before(async () => {
+  if (!mysqlTest || !testUrl) return;
+  const connection = await createConnection(testUrl);
+  try {
+    const [rows] = await connection.query<RowDataPacket[]>(
+      "SELECT DEFAULT_COLLATION_NAME AS db_collation FROM information_schema.SCHEMATA WHERE SCHEMA_NAME = DATABASE()",
+    );
+    const legacyCollation = rows[0].db_collation === "utf8mb4_bin" ? "utf8mb4_unicode_ci" : "utf8mb4_bin";
+    await connection.query(`CREATE TABLE IF NOT EXISTS schedule_workspaces (
+      id VARCHAR(36) CHARACTER SET utf8mb4 COLLATE ${legacyCollation} PRIMARY KEY,
+      version INT NOT NULL,
+      draft MEDIUMTEXT NOT NULL,
+      published MEDIUMTEXT,
+      published_at VARCHAR(32)
+    )`);
+  } finally {
+    await connection.end();
+  }
+});
 
 const morning: Shift = { name: "Утро", start: "07:00", end: "15:00", color: "blue" };
 const date = "2026-11-23";
@@ -108,4 +132,83 @@ test("rolls back changes when an employee reference is invalid", async () => {
   const invalid = { ...saved, shifts: { [shiftKey(randomUUID(), date)]: morning } };
   await assert.rejects(() => persistSchedule(id, 1, invalid, false));
   assert.deepEqual(await loadSchedule(id), { version: 1, data: saved, publishedAt: null });
+});
+
+test("MySQL uses the existing workspace key collation for foreign keys", { skip: !mysqlTest }, async () => {
+  await withScheduleDatabase(async (sql) => {
+    const columns = await sql.rows<{ table_name: string; collation_name: string }>(
+      `SELECT TABLE_NAME AS table_name, COLLATION_NAME AS collation_name
+       FROM information_schema.COLUMNS WHERE TABLE_SCHEMA = DATABASE()
+       AND ((TABLE_NAME = 'schedule_workspaces' AND COLUMN_NAME = 'id') OR
+       (TABLE_NAME IN ('schedule_employees', 'schedule_templates', 'schedule_shifts', 'schedule_normalized_versions')
+       AND COLUMN_NAME = 'workspace_id'))`,
+    );
+    assert.equal(columns.length, 5);
+    assert.equal(new Set(columns.map(({ collation_name }) => collation_name)).size, 1);
+  });
+});
+
+test("a page reads the previous committed version while another transaction is writing", { skip: !testUrl }, async () => {
+  const id = randomUUID();
+  const initial = await loadSchedule(id);
+  await persistSchedule(id, 0, initial.data, false);
+
+  let releaseWrite = () => {};
+  let signalLocked = () => {};
+  const mayCommit = new Promise<void>((resolve) => { releaseWrite = resolve; });
+  const locked = new Promise<void>((resolve) => { signalLocked = resolve; });
+  const writer = withScheduleDatabase(async (sql) => {
+    await sql.run("UPDATE schedule_workspaces SET version = ? WHERE id = ?", [2, id]);
+    signalLocked();
+    await mayCommit;
+  });
+
+  try {
+    await Promise.race([locked, writer]);
+    const read = loadSchedulePage(id, { query: "", page: 1 });
+    const timedOut = Symbol("read was blocked");
+    const page = await Promise.race([read, delay(2500, timedOut, { ref: false })]);
+    assert.notEqual(page, timedOut);
+    if (typeof page !== "symbol") assert.equal(page.version, 1);
+  } finally {
+    releaseWrite();
+    await writer;
+  }
+});
+
+test("saving an edited shift only updates that normalized row", { skip: !!testUrl }, async () => {
+  const id = randomUUID();
+  const initial = await loadSchedule(id);
+  const key = shiftKey("1", date);
+  const saved = { ...initial.data, shifts: { [key]: morning, [shiftKey("2", date)]: morning } };
+  await persistSchedule(id, 0, saved, false);
+  await withScheduleDatabase(async (sql) => {
+    await sql.run("CREATE TEMP TABLE write_audit (operation TEXT NOT NULL)");
+    for (const table of ["schedule_employees", "schedule_templates", "schedule_shifts"]) {
+      for (const event of ["INSERT", "UPDATE", "DELETE"]) {
+        const name = `${table}_${event}`;
+        await sql.run(`CREATE TEMP TRIGGER ${name} AFTER ${event} ON ${table}
+          BEGIN INSERT INTO write_audit VALUES ('${name}'); END`);
+      }
+    }
+  });
+
+  const edited = { ...saved, shifts: { ...saved.shifts, [key]: { ...morning, end: "16:00" } } };
+  assert.equal((await persistSchedule(id, 1, edited, false)).updated, true);
+  await withScheduleDatabase(async (sql) => {
+    assert.deepEqual((await sql.rows<{ operation: string }>("SELECT operation FROM write_audit")).map(({ operation }) => operation), [
+      "schedule_shifts_UPDATE",
+    ]);
+  });
+  assert.deepEqual((await loadSchedule(id)).data, edited);
+});
+
+test("can reorder employees and templates while retaining their assigned shifts", async () => {
+  const id = randomUUID();
+  const initial = await loadSchedule(id);
+  const saved = { ...initial.data, shifts: { [shiftKey("1", date)]: morning } };
+  await persistSchedule(id, 0, saved, false);
+  const reordered = { ...saved, employees: [...saved.employees].reverse(), templates: [...saved.templates].reverse() };
+  assert.equal((await persistSchedule(id, 1, reordered, false)).updated, true);
+  assert.deepEqual((await loadSchedule(id)).data, reordered);
 });

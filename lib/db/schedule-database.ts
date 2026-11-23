@@ -4,7 +4,7 @@ import { dirname } from "node:path";
 import { DatabaseSync } from "node:sqlite";
 import { createPool, type ResultSetHeader, type RowDataPacket } from "mysql2/promise";
 import { Pool } from "pg";
-import { scheduleMigration } from "./schedule-migration";
+import { initializeScheduleSchema } from "./schedule-migration";
 
 export type Dialect = "sqlite" | "mysql" | "postgres";
 export type Value = string | number | null;
@@ -13,6 +13,7 @@ export type Sql = {
   rows<T>(query: string, values?: Value[]): Promise<T[]>;
   run(query: string, values?: Value[]): Promise<number>;
 };
+type TransactionMode = "read" | "write";
 
 let sqlite: DatabaseSync | undefined;
 let sqliteQueue = Promise.resolve();
@@ -34,18 +35,24 @@ function postgresParameters(query: string) {
 }
 
 async function initialize(sql: Sql) {
-  ready ??= (async () => {
-    for (const statement of scheduleMigration(sql.dialect)) await sql.run(statement);
-  })().catch((error: unknown) => {
+  ready ??= initializeScheduleSchema(sql).catch((error: unknown) => {
     ready = undefined;
     throw error;
   });
   await ready;
 }
 
-async function transaction<T>(sql: Sql, begin: string, work: (query: Sql) => Promise<T>) {
+async function transaction<T>(sql: Sql, mode: TransactionMode, work: (query: Sql) => Promise<T>) {
   await initialize(sql);
-  await sql.run(begin);
+  if (sql.dialect === "mysql" && mode === "read") {
+    await sql.run("SET TRANSACTION ISOLATION LEVEL REPEATABLE READ");
+    await sql.run("START TRANSACTION READ ONLY, WITH CONSISTENT SNAPSHOT");
+  } else if (sql.dialect === "postgres" && mode === "read") {
+    await sql.run("BEGIN ISOLATION LEVEL REPEATABLE READ, READ ONLY");
+  } else {
+    await sql.run(mode === "write" && sql.dialect === "sqlite" ? "BEGIN IMMEDIATE" :
+      sql.dialect === "mysql" ? "START TRANSACTION" : "BEGIN");
+  }
   try {
     const result = await work(sql);
     await sql.run("COMMIT");
@@ -56,7 +63,7 @@ async function transaction<T>(sql: Sql, begin: string, work: (query: Sql) => Pro
   }
 }
 
-export async function withScheduleDatabase<T>(work: (sql: Sql) => Promise<T>): Promise<T> {
+export async function withScheduleDatabase<T>(work: (sql: Sql) => Promise<T>, mode: TransactionMode = "write"): Promise<T> {
   const url = process.env.DATABASE_URL;
   if (!url) {
     if (!sqlite) {
@@ -75,7 +82,7 @@ export async function withScheduleDatabase<T>(work: (sql: Sql) => Promise<T>): P
         return Number(db.prepare(query).run(...values).changes);
       },
     };
-    const task = sqliteQueue.then(() => transaction(sql, "BEGIN IMMEDIATE", work));
+    const task = sqliteQueue.then(() => transaction(sql, mode, work));
     sqliteQueue = task.then(() => {}, () => {});
     return task;
   }
@@ -97,7 +104,7 @@ export async function withScheduleDatabase<T>(work: (sql: Sql) => Promise<T>): P
       },
     };
     try {
-      return await transaction(sql, "START TRANSACTION", work);
+      return await transaction(sql, mode, work);
     } finally {
       connection.release();
     }
@@ -120,7 +127,7 @@ export async function withScheduleDatabase<T>(work: (sql: Sql) => Promise<T>): P
     },
   };
   try {
-    return await transaction(sql, "BEGIN", work);
+    return await transaction(sql, mode, work);
   } finally {
     connection.release();
   }

@@ -1,7 +1,8 @@
 import "server-only";
-import { withScheduleDatabase, type Sql, type Value } from "./db/schedule-database";
+import { withScheduleDatabase, type Sql } from "./db/schedule-database";
 import { schedulePageSize, shiftKey, workspaceSchema, type Employee, type SchedulePageData, type Shift, type Snapshot, type Template, type Workspace } from "./schedule";
 import { initialWorkspace } from "./seed";
+import { syncNormalizedRows } from "./db/schedule-write";
 
 type Metadata = { version: number; published_at: string | null };
 type EmployeeRow = { id: string; name: string; job_title: string; avatar: string | null };
@@ -30,51 +31,54 @@ function likePattern(word: string) {
   return `%${word.replace(/[!%_]/g, (character) => `!${character}`)}%`;
 }
 
-async function insertRows(sql: Sql, statement: string, rows: Value[][]) {
-  const width = rows[0]?.length;
-  if (!width) return;
-  const tuple = `(${Array.from({ length: width }, () => "?").join(", ")})`;
-  for (let offset = 0; offset < rows.length; offset += 100) {
-    const batch = rows.slice(offset, offset + 100);
-    await sql.run(`${statement} VALUES ${batch.map(() => tuple).join(", ")}`, batch.flat());
-  }
-}
-
-async function writeNormalized(sql: Sql, id: string, version: number, data: Workspace, replace: boolean) {
-  if (replace) {
+async function writeNormalized(sql: Sql, id: string, version: number, data: Workspace, previousVersion?: number, previous?: Workspace) {
+  if (previousVersion !== undefined && !previous) {
     await sql.run("DELETE FROM schedule_employees WHERE workspace_id = ?", [id]);
     await sql.run("DELETE FROM schedule_templates WHERE workspace_id = ?", [id]);
   }
 
-  await insertRows(sql, "INSERT INTO schedule_employees (workspace_id, id, name, name_search, job_title, avatar, sort_order)",
-    data.employees.map((item, order) => [id, item.id, item.name, item.name.toLocaleLowerCase("ru"), item.role, item.avatar, order]));
-  await insertRows(sql, "INSERT INTO schedule_templates (workspace_id, id, name, start_time, end_time, color, sort_order)",
-    data.templates.map((item, order) => [id, item.id, item.name, item.start, item.end, item.color, order]));
-  await insertRows(sql, "INSERT INTO schedule_shifts (workspace_id, employee_id, shift_date, name, start_time, end_time, color)",
-    Object.entries(data.shifts).map(([key, item]) => {
-      const [employee, date] = key.split("/");
-      return [id, employee, date, item.name, item.start, item.end, item.color];
-    }));
-
-  if (replace) {
+  await syncNormalizedRows(sql, id, data, previous);
+  if (previousVersion !== undefined) {
     await sql.run("UPDATE schedule_normalized_versions SET source_version = ? WHERE workspace_id = ?", [version, id]);
   } else {
     await sql.run("INSERT INTO schedule_normalized_versions (workspace_id, source_version) VALUES (?, ?)", [id, version]);
   }
 }
 
-async function lockWorkspace(sql: Sql, id: string) {
-  const lock = sql.dialect === "sqlite" ? "" : " FOR UPDATE";
+async function readWorkspace(sql: Sql, id: string, forUpdate = false) {
+  const lock = forUpdate && sql.dialect !== "sqlite" ? " FOR UPDATE" : "";
   const [metadata] = await sql.rows<Metadata>(`SELECT version, published_at FROM schedule_workspaces WHERE id = ?${lock}`, [id]);
   return metadata;
+}
+
+async function readNormalized<T>(id: string, empty: () => T, read: (sql: Sql, row: Metadata) => Promise<T>) {
+  const result = await withScheduleDatabase(async (sql) => {
+    const row = await readWorkspace(sql, id);
+    if (!row) return { data: empty() };
+    const marker = await readMarker(sql, id);
+    return marker?.source_version === row.version ? { data: await read(sql, row) } : null;
+  }, "read");
+  if (result) return result.data;
+
+  // The read transaction must end before attempting to import a legacy draft.
+  return withScheduleDatabase(async (sql) => {
+    const row = await readWorkspace(sql, id, true);
+    if (!row) return empty();
+    await ensureNormalized(sql, id, row.version);
+    return read(sql, row);
+  });
 }
 
 async function ensureNormalized(sql: Sql, id: string, version: number) {
   const marker = await readMarker(sql, id);
   if (marker?.source_version === version) return;
 
+  await writeNormalized(sql, id, version, await readLegacyDraft(sql, id), marker?.source_version);
+}
+
+async function readLegacyDraft(sql: Sql, id: string) {
   const [legacy] = await sql.rows<{ draft: string }>("SELECT draft FROM schedule_workspaces WHERE id = ?", [id]);
-  await writeNormalized(sql, id, version, workspaceSchema.parse(JSON.parse(legacy.draft)), !!marker);
+  return workspaceSchema.parse(JSON.parse(legacy.draft));
 }
 
 async function readMarker(sql: Sql, id: string) {
@@ -103,11 +107,7 @@ async function loadShifts(sql: Sql, id: string, ids?: string[]): Promise<Workspa
 
 export async function loadSchedule(id: string | null): Promise<Snapshot> {
   if (!id) return emptySchedule();
-  return withScheduleDatabase(async (sql) => {
-    const row = await lockWorkspace(sql, id);
-    if (!row) return emptySchedule();
-    await ensureNormalized(sql, id, row.version);
-
+  return readNormalized(id, emptySchedule, async (sql, row) => {
     const employees = await sql.rows<EmployeeRow>(
       `SELECT ${employeeColumns} FROM schedule_employees WHERE workspace_id = ? ORDER BY sort_order`, [id],
     );
@@ -128,11 +128,7 @@ function seedPage({ query }: PageRequest): SchedulePageData {
 
 export async function readSchedulePage(id: string | null, request: PageRequest): Promise<SchedulePageData> {
   if (!id) return seedPage(request);
-  return withScheduleDatabase(async (sql) => {
-    const row = await lockWorkspace(sql, id);
-    if (!row) return seedPage(request);
-    await ensureNormalized(sql, id, row.version);
-
+  return readNormalized(id, () => seedPage(request), async (sql, row) => {
     const words = searchWords(request.query);
     const filter = "workspace_id = ?" + " AND name_search LIKE ? ESCAPE '!'".repeat(words.length);
     const parameters = [id, ...words.map(likePattern)];
@@ -166,10 +162,12 @@ export async function persistSchedule(id: string, version: number, data: Workspa
   return withScheduleDatabase(async (sql) => {
     const conflict = sql.dialect === "mysql" ? "ON DUPLICATE KEY UPDATE id = id" : "ON CONFLICT (id) DO NOTHING";
     await sql.run(`INSERT INTO schedule_workspaces (id, version, draft) VALUES (?, 0, ?) ${conflict}`, [id, JSON.stringify(initialWorkspace())]);
-    const row = await lockWorkspace(sql, id);
+    const row = await readWorkspace(sql, id, true);
     if (!row || row.version !== version) return { updated: false, publishedAt: null };
 
-    await writeNormalized(sql, id, version + 1, data, !!(await readMarker(sql, id)));
+    const marker = await readMarker(sql, id);
+    const previous = marker?.source_version === version ? await readLegacyDraft(sql, id) : undefined;
+    await writeNormalized(sql, id, version + 1, data, marker?.source_version, previous);
     const document = JSON.stringify(data);
     const publishedAt = publish ? new Date().toISOString() : null;
     // Keep the legacy draft current so an older release can still read it after rollback.
