@@ -1,0 +1,37 @@
+:where(.button) {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 8px;
+  min-width: 0;
+  min-height: 48px;
+  padding-inline: 16px;
+  border-radius: 9px;
+  font-size: 16px;
+  font-weight: 400;
+  line-height: 1.5;
+  box-shadow: none;
+}
+
+.primary { color: white; background: #5978ec; }
+.secondary { color: #2047d9; background: #e7ecff; }
+.primary:enabled:hover { background: #2047df; }
+.primary:enabled:active { background: #1638b7; }
+.secondary:enabled:hover { background: #cfd8fa; }
+.secondary:enabled:active { background: #bac8f5; }
+.button:disabled { color: #8a8d96; background: #eff0f4; }
+
+:where(.iconButton) {
+  display: grid;
+  place-items: center;
+  width: 32px;
+  height: 32px;
+  padding: 0;
+  border-radius: 6px;
+  color: inherit;
+}
+
+.iconButton:enabled:hover { background: #eff0f4; }
+.iconButton:enabled:active { background: #e2e4eb; }
+.iconButton:disabled { color: inherit; opacity: 0.5; }
+.button:focus-visible, .iconButton:focus-visible { outline: 2px solid #3157db; outline-offset: 2px; }

@@ -1,26 +1,37 @@
-@import "tailwindcss";
+@layer reset, mui;
 
-@theme inline {
-  --font-sans: var(--font-inter-latin), var(--font-inter-cyrillic), Arial, sans-serif;
+@layer reset {
+  *, *::before, *::after { box-sizing: border-box; }
+
+  body {
+    --app-font: var(--font-inter-latin), var(--font-inter-cyrillic), Arial, sans-serif;
+    min-height: 100dvh;
+    margin: 0;
+    color: #191a1e;
+    background: #eff0f4;
+    font-family: var(--app-font);
+    line-height: 1.5;
+    -webkit-font-smoothing: antialiased;
+  }
+
+  :where(h1, h2, h3, p, ul, fieldset) { margin: 0; }
+  :where(h1, h2, h3) { font: inherit; }
+  :where(fieldset) { min-width: 0; padding: 0; border: 0; }
+  :where(legend) { padding: 0; }
+  :where(a) { color: inherit; text-decoration: none; }
+  :where(img, svg) { display: block; vertical-align: middle; }
+  :where(button, input, select) {
+    padding: 0;
+    border: 0;
+    background: transparent;
+    color: inherit;
+    font: inherit;
+  }
+
+  :where(button:enabled) { cursor: pointer; }
 }
 
-@theme {
-  --animate-schedule-period: schedule-period 280ms ease-out both;
-  --animate-schedule-actions: schedule-actions 240ms ease-out both;
-  --animate-schedule-marker: schedule-marker 220ms ease-out both;
-
-  @keyframes schedule-period {
-    from { opacity: 0.2; }
-    to { opacity: 1; }
-  }
-
-  @keyframes schedule-actions {
-    from { opacity: 0; translate: 0 -10px; }
-    to { opacity: 1; translate: 0 0; }
-  }
-
-  @keyframes schedule-marker {
-    from { opacity: 0; scale: 0.65; }
-    to { opacity: 1; scale: 1; }
-  }
+:where(button, a, input, select):focus-visible {
+  outline: 2px solid #5978ec;
+  outline-offset: 2px;
 }

@@ -1,5 +1,6 @@
 import type { Metadata } from "next";
 import localFont from "next/font/local";
+import { AppThemeProvider } from "@/components/ui/theme-provider";
 import "./globals.css";
 
 const latin = localFont({
@@ -22,5 +23,9 @@ export const metadata: Metadata = {
 };
 
 export default function RootLayout({ children }: LayoutProps<"/">) {
-  return <html lang="ru" className={latin.variable + " " + cyrillic.variable}><body className="min-h-dvh bg-[#eff0f4] font-sans text-[#191a1e] antialiased">{children}</body></html>;
+  return (
+    <html lang="ru" className={latin.variable + " " + cyrillic.variable}>
+      <body><AppThemeProvider>{children}</AppThemeProvider></body>
+    </html>
+  );
 }

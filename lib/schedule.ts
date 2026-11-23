@@ -23,10 +23,10 @@ export const defaultEmployees: Employee[] = [
   { id: "8", name: "Гаврилов Егор", role: "агент" },
 ].map((employee) => ({ ...employee, avatar: `/employees/${employee.id}.png` }));
 export const colors = {
-  violet: { name: "Фиолетовый", className: "bg-violet-100 text-violet-800" },
-  blue: { name: "Синий", className: "bg-blue-100 text-blue-800" },
-  green: { name: "Зелёный", className: "bg-emerald-100 text-emerald-800" },
-  amber: { name: "Янтарный", className: "bg-amber-100 text-amber-800" },
+  violet: { name: "Фиолетовый" },
+  blue: { name: "Синий" },
+  green: { name: "Зелёный" },
+  amber: { name: "Янтарный" },
 };
 
 const time = z.string().regex(/^([01]\d|2[0-3]):[0-5]\d$/, "Укажите время в формате ЧЧ:ММ");
@@ -44,10 +44,20 @@ function differentTimes(shift: { start: string; end: string }) {
 export const shiftSchema = shiftFields.refine(differentTimes, "Время начала и конца должно различаться");
 export const templateSchema = shiftFields.extend({ id: z.uuid() }).refine(differentTimes);
 const dateSchema = z.iso.date();
+const shiftKeySeparator = "/";
+
+export function shiftKey(employeeId: string, date: string) {
+  return `${employeeId}${shiftKeySeparator}${date}`;
+}
+
+export function parseShiftKey(key: string) {
+  const [employeeId, date, extra] = key.split(shiftKeySeparator);
+  return employeeId && date && extra === undefined ? { employeeId, date } : null;
+}
 
 const shiftKeySchema = z.string().refine((key) => {
-  const [id, date, extra] = key.split("/");
-  return extra === undefined && employeeIdSchema.safeParse(id).success && dateSchema.safeParse(date).success;
+  const cell = parseShiftKey(key);
+  return cell !== null && employeeIdSchema.safeParse(cell.employeeId).success && dateSchema.safeParse(cell.date).success;
 });
 const templatesSchema = z.array(templateSchema).max(50).refine((items) => new Set(items.map(({ id }) => id)).size === items.length);
 const scheduleDataSchema = z.object({ shifts: z.record(shiftKeySchema, shiftSchema), templates: templatesSchema });
@@ -58,7 +68,10 @@ export const workspaceSchema = scheduleDataSchema.extend({
   employees: z.array(employeeSchema).max(maxEmployees).default(defaultEmployees),
 }).refine(({ employees, shifts }) => {
   const ids = new Set(employees.map(({ id }) => id));
-  return ids.size === employees.length && Object.keys(shifts).every((key) => ids.has(key.split("/")[0]));
+  return ids.size === employees.length && Object.keys(shifts).every((key) => {
+    const cell = parseShiftKey(key);
+    return cell !== null && ids.has(cell.employeeId);
+  });
 });
 
 export type Shift = z.infer<typeof shiftSchema>;
@@ -94,14 +107,12 @@ export function patchShifts(shifts: Workspace["shifts"], changes: ShiftPatch) {
 export function patchCoverage(coverage: Record<string, number>, changes: ShiftChanges) {
   const next = { ...coverage };
   for (const [key, { before, after }] of Object.entries(changes)) {
-    const date = key.split("/")[1];
+    const cell = parseShiftKey(key);
+    if (!cell) continue;
+    const { date } = cell;
     next[date] = (next[date] ?? 0) + Number(!!after) - Number(!!before);
   }
   return next;
-}
-
-export function shiftKey(employeeId: string, date: string) {
-  return `${employeeId}/${date}`;
 }
 
 export function dateKey(date: Date) {

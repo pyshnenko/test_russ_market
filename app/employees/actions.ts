@@ -7,7 +7,7 @@ import { z } from "zod";
 import { workspaceId } from "@/lib/access";
 import { getDatabaseErrorCode, isDatabaseUnavailable } from "@/lib/database-errors";
 import { loadSchedule, persistSchedule } from "@/lib/repository";
-import { employeeFields, employeeIdSchema, maxEmployees } from "@/lib/schedule";
+import { employeeFields, employeeIdSchema, maxEmployees, parseShiftKey } from "@/lib/schedule";
 
 const versionSchema = z.string().regex(/^\d{1,10}$/).transform(Number);
 const avatarFile = z.file().max(5 * 1024 * 1024, "Загрузите изображение размером до 5 МБ.")
@@ -62,7 +62,7 @@ export async function mutateEmployee(_: EmployeeActionResult, form: FormData): P
     let nextShifts = shifts;
     if (input.intent === "delete") {
       nextEmployees = employees.filter(({ id }) => id !== input.id);
-      nextShifts = Object.fromEntries(Object.entries(shifts).filter(([key]) => !key.startsWith(`${input.id}/`)));
+      nextShifts = Object.fromEntries(Object.entries(shifts).filter(([key]) => parseShiftKey(key)?.employeeId !== input.id));
     } else {
       let avatar = input.intent === "edit" && input.removeAvatar ? null : existing?.avatar ?? null;
       if (input.avatar) {

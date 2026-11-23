@@ -1,4 +1,5 @@
 import { redirect } from "next/navigation";
+import styles from "./page.module.css";
 import { EmployeeAvatar } from "@/components/features/employee-avatar";
 import { EmployeeControls } from "@/components/features/employee-controls";
 import { ScheduleShell } from "@/components/features/schedule-shell";
@@ -23,27 +24,27 @@ export default async function EmployeesPage() {
   const { employees } = snapshot.data;
   return (
     <ScheduleShell section="employees">
-      <header className="mb-4 flex shrink-0 flex-wrap items-center justify-between gap-3 xl:mb-6">
-        <h1 className="text-[28px] tracking-[-0.04em] sm:text-[32px]">Сотрудники</h1>
+      <header className={styles.header}>
+        <h1 className={styles.title}>Сотрудники</h1>
         <EmployeeControls version={snapshot.version} disabled={employees.length >= maxEmployees} />
       </header>
-      <div className="min-h-0 flex-1 overflow-y-auto overscroll-contain pb-3">
+      <div className={styles.listContainer}>
         {employees.length ? (
-          <ul className="grid gap-3 sm:grid-cols-2 xl:grid-cols-3 2xl:grid-cols-4">
+          <ul className={styles.list}>
             {employees.map((employee) => (
-              <li key={employee.id} className="grid min-w-0 content-between gap-5 rounded-2xl bg-white p-4 sm:p-5">
-                <div className="flex items-center gap-3">
+              <li key={employee.id} className={styles.card}>
+                <div className={styles.profile}>
                   <EmployeeAvatar avatar={employee.avatar} name={employee.name} size={72} />
-                  <div className="min-w-0">
-                    <h2 className="font-medium wrap-break-word">{employee.name}</h2>
-                    <p className="mt-1 text-sm wrap-break-word text-[#636770]">{employee.role}</p>
+                  <div className={styles.details}>
+                    <h2 className={styles.name}>{employee.name}</h2>
+                    <p className={styles.role}>{employee.role}</p>
                   </div>
                 </div>
                 <EmployeeControls employee={employee} version={snapshot.version} />
               </li>
             ))}
           </ul>
-        ) : <p className="rounded-2xl bg-white p-6 text-[#636770]">Добавьте первого сотрудника, чтобы назначать ему смены.</p>}
+        ) : <p className={styles.empty}>Добавьте первого сотрудника, чтобы назначать ему смены.</p>}
       </div>
     </ScheduleShell>
   );

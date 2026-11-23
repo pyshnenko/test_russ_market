@@ -1,6 +1,6 @@
 import "server-only";
 import type { Sql, Value } from "./schedule-database";
-import type { Shift, Workspace } from "../schedule";
+import { parseShiftKey, type Shift, type Workspace } from "../schedule";
 
 type OrderedTable = "schedule_employees" | "schedule_templates";
 
@@ -61,11 +61,17 @@ async function syncOrderedRows(sql: Sql, workspace: string, table: OrderedTable,
   await insertRows(sql, `INSERT INTO ${table} (workspace_id, id, ${columns.join(", ")})`, additions);
 }
 
+function shiftCoordinates(workspace: string, key: string) {
+  const cell = parseShiftKey(key);
+  if (!cell) throw new Error("Malformed shift key");
+  return [workspace, cell.employeeId, cell.date];
+}
+
 async function syncShifts(sql: Sql, workspace: string, previous: Workspace["shifts"], next: Workspace["shifts"]) {
   const keyFilter = "WHERE workspace_id = ? AND employee_id = ? AND shift_date = ?";
   for (const key of Object.keys(previous)) {
     if (!next[key]) {
-      await sql.run(`DELETE FROM schedule_shifts ${keyFilter}`, [workspace, ...key.split("/")]);
+      await sql.run(`DELETE FROM schedule_shifts ${keyFilter}`, shiftCoordinates(workspace, key));
     }
   }
 
@@ -74,11 +80,11 @@ async function syncShifts(sql: Sql, workspace: string, previous: Workspace["shif
     const old = previous[key] && shiftValues(previous[key]);
     const values = shiftValues(shift);
     if (!old) {
-      additions.push([workspace, ...key.split("/"), ...values]);
+      additions.push([...shiftCoordinates(workspace, key), ...values]);
     } else if (values.some((value, index) => value !== old[index])) {
       await sql.run(
         `UPDATE schedule_shifts SET name = ?, start_time = ?, end_time = ?, color = ? ${keyFilter}`,
-        [...values, workspace, ...key.split("/")],
+        [...values, ...shiftCoordinates(workspace, key)],
       );
     }
   }

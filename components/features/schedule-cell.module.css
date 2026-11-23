@@ -1,0 +1,84 @@
+.cell { position: relative; padding: 4px; }
+
+.shift {
+  display: flex;
+  width: 100%;
+  height: 48px;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  gap: 4px;
+  padding-inline: 4px;
+  border: 1px dashed #dcdfe7;
+  border-radius: 9px;
+  font-size: 14px;
+  line-height: 1.25;
+}
+
+.shift[data-tone] { border-color: transparent; border-style: solid; cursor: grab; }
+.shift[data-tone]:enabled:active { cursor: grabbing; }
+.shift[data-tone="blue"] { background: #e6edff; color: #245dcc; }
+.shift[data-tone="violet"] { background: #e9ddfe; color: #6935cd; }
+.shift[data-tone="green"] { background: #dcf6f5; color: #007b76; }
+.shift[data-tone="amber"] { background: #fff0d6; color: #875406; }
+.shift[data-tone][aria-pressed="true"] { background: #5978ec; color: white; }
+.shift:not([data-tone])[aria-pressed="true"] { border: 1px solid #5978ec; border-radius: 0; background: #e7ecff; }
+.shift:enabled:hover { border-color: #5978ec; }
+.shift:not([data-tone])[aria-pressed="false"]:enabled:hover { background: #f0f4ff; }
+.shift[data-tone][aria-pressed="false"]:enabled:hover { box-shadow: inset 0 0 0 1px #5978ec; }
+.shift:enabled:active { box-shadow: 0 0 0 1px #5978ec; }
+.shift:disabled { cursor: default; }
+.shift[data-dragging] { opacity: 0.5; }
+.shift[data-drop-target] { border-color: #5978ec; border-style: solid; box-shadow: inset 0 0 0 2px #5978ec; }
+.time { white-space: nowrap; }
+.shift[aria-pressed="false"] .time { color: #191a1e; }
+.duration { font-size: 12px; }
+.compactDuration { font-size: 14px; font-weight: 500; }
+
+.marker {
+  display: grid;
+  place-items: center;
+  width: 20px;
+  height: 20px;
+  border-radius: 50%;
+  background: #5978ec;
+  color: white;
+  opacity: 0;
+  pointer-events: none;
+}
+
+.marker svg, .edit svg { width: 14px; height: 14px; }
+.shift[aria-pressed="true"] .marker { opacity: 1; }
+
+.edit {
+  position: absolute;
+  top: 6px;
+  right: 6px;
+  display: grid;
+  place-items: center;
+  width: 20px;
+  height: 20px;
+  border-radius: 4px;
+  background: rgb(255 255 255 / 80%);
+  opacity: 0;
+}
+
+.edit svg { width: 12px; height: 12px; }
+.cell:hover .edit, .edit:focus-visible { opacity: 1; }
+.edit:hover { background: white; }
+
+@media (width >= 640px) {
+  .compactDuration { font-size: 16px; }
+}
+
+@media (width >= 1280px) and (height > 760px) {
+  .shift { height: 64px; }
+}
+
+@media (prefers-reduced-motion: no-preference) {
+  .shift { transition: background-color 300ms, border-color 300ms, border-radius 300ms, color 300ms, box-shadow 300ms; transition-timing-function: ease-in-out; }
+  .time { transition: color 300ms ease-in-out; }
+  .marker { scale: 0.75; transition: opacity 300ms ease-in-out, scale 300ms ease-in-out; }
+  .shift[aria-pressed="true"] .marker { scale: 1; }
+  .edit { transition: opacity 150ms; }
+}

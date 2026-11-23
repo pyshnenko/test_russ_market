@@ -1,0 +1,35 @@
+.form, .assignment { display: grid; gap: 16px; font-size: 14px; }
+.form { padding: 24px; }
+.assignment { min-height: 0; padding: 16px; overflow-y: auto; }
+.title { font-size: 20px; font-weight: 500; }
+.date { margin-top: 4px; color: #636770; }
+.label { display: grid; gap: 4px; }
+.field { min-width: 0; padding: 10px 12px; border-radius: 8px; background: #eff0f4; }
+.field:focus-visible { outline: 2px solid #5978ec; }
+.times { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 8px; }
+.error { color: #b91c1c; }
+.actions { display: flex; flex-wrap: wrap; justify-content: flex-end; gap: 8px; }
+.deleteButton { margin-right: auto; color: #b91c1c; }
+.deleteButton:hover { background: #fef2f2; }
+.cancelButton { background: #eff0f4; color: #191a1e; }
+.confirmButton { color: white; }
+.employees { display: grid; gap: 2px; }
+.legend { margin-bottom: 8px; font-weight: 500; }
+.hint { padding-inline: 8px; color: #636770; font-size: 12px; }
+.emptyEmployees { padding-inline: 8px; color: #636770; }
+.employee { display: flex; align-items: center; gap: 8px; padding: 6px 8px; border-radius: 6px; cursor: pointer; }
+.employee:hover { background: #eff0f4; }
+.checkbox { flex: none; width: 16px; height: 16px; accent-color: #5978ec; }
+.employeeName { flex: 1; }
+.hours { color: #636770; font-size: 12px; white-space: nowrap; }
+.templates { display: grid; gap: 4px; }
+.templatesTitle { margin-bottom: 4px; font-weight: 500; }
+.template { display: flex; flex-wrap: wrap; justify-content: space-between; column-gap: 8px; min-height: 0; padding: 8px 12px; border-radius: 8px; text-align: left; font-size: 14px; }
+.time { white-space: nowrap; }
+.empty { color: #636770; }
+.close { justify-self: end; color: #191a1e; }
+.close:hover { background: #eff0f4; }
+
+@media (width >= 640px) {
+  .assignment { padding: 24px; }
+}

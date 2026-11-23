@@ -1,5 +1,7 @@
 "use client";
 
+import styles from "./swagger-explorer.module.css";
+
 import { useState } from "react";
 import Script from "next/script";
 
@@ -10,7 +12,7 @@ export function SwaggerExplorer() {
   return (
     <>
       <div id="schedule-openapi" />
-      {failed && <p role="alert" className="px-5 py-4 text-red-700">Не удалось загрузить Swagger UI.</p>}
+      {failed && <p role="alert" className={styles.error}>Не удалось загрузить Swagger UI.</p>}
       <Script src="/api/openapi/assets/swagger-ui-bundle.js" strategy="afterInteractive" onReady={() => {
         const swagger = (window as Window & { SwaggerUIBundle?: SwaggerUI }).SwaggerUIBundle;
         if (!swagger) { setFailed(true); return; }

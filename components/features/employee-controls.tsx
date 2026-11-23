@@ -1,18 +1,17 @@
 "use client";
 
-import { useActionState, useEffect, useState } from "react";
+import { useActionState, useEffect, useRef, useState } from "react";
 import { useFormStatus } from "react-dom";
 import dynamic from "next/dynamic";
 import { mutateEmployee } from "@/app/employees/actions";
-import { cn } from "@/lib/cn";
+import clsx from "clsx";
+import Button from "@mui/material/Button";
+import styles from "./employee-controls.module.css";
 import type { Employee } from "@/lib/schedule";
 import { EmployeeAvatar } from "./employee-avatar";
 import { Icon } from "./icon";
 
 const Dialog = dynamic(() => import("@mui/material/Dialog"));
-const primary = "inline-flex min-h-10 cursor-pointer items-center justify-center gap-2 rounded-lg bg-[#5978ec] px-4 py-2 text-sm font-medium text-white hover:bg-[#2047d9] disabled:cursor-default disabled:opacity-60 motion-safe:transition-colors";
-const secondary = "inline-flex min-h-9 cursor-pointer items-center justify-center gap-1.5 rounded-lg bg-[#eff0f4] px-3 py-2 text-sm hover:bg-[#e2e4eb] disabled:cursor-default disabled:opacity-60 motion-safe:transition-colors";
-const field = "mt-1 w-full rounded-lg bg-[#eff0f4] px-3 py-2.5 outline-none focus-visible:ring-2 focus-visible:ring-[#5978ec]";
 
 type Intent = "create" | "edit" | "delete";
 
@@ -24,10 +23,10 @@ function hasAvatarUpload(data: FormData | null) {
 function AvatarUploadStatus() {
   const { pending, data } = useFormStatus();
   return (
-    <div role="status" className="flex items-center gap-2 rounded-lg bg-[#e7ecff] px-3 py-2 text-sm text-[#2047d9] empty:hidden">
+    <div role="status" className={styles.uploadStatus}>
       {pending && hasAvatarUpload(data) && (
         <>
-          <span aria-hidden="true" className="size-4 shrink-0 rounded-full border-2 border-current border-r-transparent motion-safe:animate-spin" />
+          <span aria-hidden="true" className={styles.spinner} />
           Загружаем и обрабатываем аватар…
         </>
       )}
@@ -38,9 +37,9 @@ function AvatarUploadStatus() {
 function EmployeeSubmit({ intent }: { intent: Intent }) {
   const { pending, data } = useFormStatus();
   const idleLabel = intent === "delete" ? "Удалить сотрудника" : "Сохранить";
-  return <button disabled={pending} className={cn(primary, intent === "delete" && "bg-red-700 hover:bg-red-800")}>
+  return <Button type="submit" variant="contained" disabled={pending} className={clsx(styles.primary, intent === "delete" && styles.danger)}>
     {pending ? hasAvatarUpload(data) ? "Загрузка…" : "Сохранение…" : idleLabel}
-  </button>;
+  </Button>;
 }
 
 function EmployeeDialog({ intent, employee, version, onClose }: {
@@ -52,8 +51,11 @@ function EmployeeDialog({ intent, employee, version, onClose }: {
   const [result, action, pending] = useActionState(mutateEmployee, {});
   const [name, setName] = useState(employee?.name ?? "");
   const [role, setRole] = useState(employee?.role ?? "");
-  const [preview, setPreview] = useState<string | null>(null);
+  const avatarInput = useRef<HTMLInputElement>(null);
+  const [avatarFile, setAvatarFile] = useState<{ preview: string | null } | null>(null);
   const [removeAvatar, setRemoveAvatar] = useState(false);
+  const preview = avatarFile?.preview;
+  const avatar = preview ?? (removeAvatar ? null : employee?.avatar ?? null);
 
   useEffect(() => {
     if (result.success) onClose();
@@ -66,40 +68,54 @@ function EmployeeDialog({ intent, employee, version, onClose }: {
   const title = intent === "create" ? "Новый сотрудник" : intent === "edit" ? "Редактировать сотрудника" : "Удалить сотрудника";
   return (
     <Dialog open onClose={pending ? undefined : onClose} aria-labelledby="employee-dialog-title" fullWidth maxWidth="xs">
-      <form action={action} onReset={() => setPreview(null)} className="grid gap-4 overflow-y-auto p-5 text-sm sm:p-6">
-        <h2 id="employee-dialog-title" className="text-xl font-medium">{title}</h2>
+      <form action={action} onReset={() => setAvatarFile(null)} className={styles.form}>
+        <h2 id="employee-dialog-title" className={styles.title}>{title}</h2>
         <input type="hidden" name="intent" value={intent} />
         <input type="hidden" name="version" value={version} />
         {employee && <input type="hidden" name="id" value={employee.id} />}
         {intent === "delete" ? (
           <p>Удалить <strong>{employee?.name}</strong> и все назначенные этому сотруднику смены из черновика графика?</p>
         ) : (
-          <fieldset disabled={pending} className="grid gap-4">
-            <label>ФИО<input name="name" autoFocus required maxLength={100} value={name} onChange={(event) => setName(event.target.value)} className={field} /></label>
-            <label>Должность<input name="role" required maxLength={80} value={role} onChange={(event) => setRole(event.target.value)} className={field} /></label>
-            <div className="flex flex-wrap items-center gap-3">
-              <EmployeeAvatar avatar={preview ?? (removeAvatar ? null : employee?.avatar ?? null)} name={name} size={72} />
-              <label className="min-w-0 flex-1">
+          <fieldset disabled={pending} className={styles.fields}>
+            <label>ФИО<input name="name" autoFocus required maxLength={100} value={name} onChange={(event) => setName(event.target.value)} className={styles.field} /></label>
+            <label>Должность<input name="role" required maxLength={80} value={role} onChange={(event) => setRole(event.target.value)} className={styles.field} /></label>
+            <div className={styles.avatarField}>
+              <div className={styles.preview}>
+                <EmployeeAvatar avatar={avatar} name={name} size={72} />
+                {(avatar || avatarFile) && (
+                  <button
+                    type="button"
+                    aria-label="Удалить аватар"
+                    title="Удалить аватар"
+                    className={styles.removeAvatar}
+                    onClick={() => {
+                      const input = avatarInput.current;
+                      if (input) {
+                        input.value = "";
+                        input.focus();
+                      }
+                      setAvatarFile(null);
+                      setRemoveAvatar(Boolean(employee?.avatar));
+                    }}
+                  ><Icon name="close" /></button>
+                )}
+              </div>
+              <label className={styles.upload}>
                 <span>Аватар</span>
-                <input name="avatar" type="file" accept="image/jpeg,image/png,image/webp" className="mt-1 block w-full text-xs file:mr-2 file:cursor-pointer file:rounded-lg file:border-0 file:bg-[#e7ecff] file:px-3 file:py-2 file:text-[#2047d9]" onChange={(event) => {
+                <input ref={avatarInput} name="avatar" type="file" accept="image/jpeg,image/png,image/webp" className={styles.file} onChange={(event) => {
                   const file = event.target.files?.[0];
-                  setPreview(file && file.size <= 5 * 1024 * 1024 ? URL.createObjectURL(file) : null);
+                  setAvatarFile(file?.size ? { preview: file.size <= 5 * 1024 * 1024 ? URL.createObjectURL(file) : null } : null);
                 }} aria-describedby="avatar-format" />
-                <span id="avatar-format" className="mt-1 block text-xs text-[#636770]">JPEG, PNG или WebP, до 5 МБ</span>
+                <span id="avatar-format" className={styles.fileHint}>JPEG, PNG или WebP, до 5 МБ</span>
               </label>
             </div>
             <AvatarUploadStatus />
-            {employee?.avatar && !preview && (
-              <label className="flex items-center gap-2">
-                <input type="checkbox" name="removeAvatar" checked={removeAvatar} onChange={(event) => setRemoveAvatar(event.target.checked)} className="accent-[#5978ec]" />
-                Удалить текущий аватар
-              </label>
-            )}
+            {removeAvatar && <input type="hidden" name="removeAvatar" value="on" />}
           </fieldset>
         )}
-        {result.error && <p role="alert" className="text-red-700">{result.error}</p>}
-        <div className="flex flex-wrap justify-end gap-2">
-          <button type="button" disabled={pending} className={secondary} onClick={onClose}>Отмена</button>
+        {result.error && <p role="alert" className={styles.error}>{result.error}</p>}
+        <div className={styles.formActions}>
+          <Button type="button" disabled={pending} className={styles.secondary} onClick={onClose}>Отмена</Button>
           <EmployeeSubmit intent={intent} />
         </div>
       </form>
@@ -112,12 +128,12 @@ export function EmployeeControls({ employee, version, disabled }: { employee?: E
   return (
     <>
       {employee ? (
-        <div className="flex flex-wrap gap-2">
-          <button type="button" aria-label={`Редактировать: ${employee.name}`} className={secondary} onClick={() => setIntent("edit")}><Icon name="edit" /> Изменить</button>
-          <button type="button" aria-label={`Удалить: ${employee.name}`} className={secondary + " text-red-700"} onClick={() => setIntent("delete")}><Icon name="trash" /> Удалить</button>
+        <div className={styles.buttons}>
+          <Button type="button" aria-label={`Редактировать: ${employee.name}`} className={styles.secondary} onClick={() => setIntent("edit")}><Icon name="edit" /> Изменить</Button>
+          <Button type="button" aria-label={`Удалить: ${employee.name}`} className={clsx(styles.secondary, styles.danger)} onClick={() => setIntent("delete")}><Icon name="trash" /> Удалить</Button>
         </div>
       ) : (
-        <button type="button" disabled={disabled} className={primary} onClick={() => setIntent("create")}><Icon name="plus" /> Добавить сотрудника</button>
+        <Button type="button" variant="contained" disabled={disabled} className={styles.primary} onClick={() => setIntent("create")}><Icon name="plus" /> Добавить сотрудника</Button>
       )}
       {intent && <EmployeeDialog intent={intent} employee={employee} version={version} onClose={() => setIntent(null)} />}
     </>

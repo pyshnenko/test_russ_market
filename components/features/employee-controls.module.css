@@ -1,0 +1,54 @@
+.form, .fields { display: grid; gap: 16px; }
+.form { padding: 20px; overflow-y: auto; font-size: 14px; }
+.title { font-size: 20px; font-weight: 500; }
+.field { width: 100%; margin-top: 4px; padding: 10px 12px; border-radius: 8px; background: #eff0f4; }
+.field:focus-visible, .removeAvatar:focus-visible { outline: 2px solid #5978ec; }
+.avatarField { display: flex; flex-wrap: wrap; align-items: center; gap: 12px; }
+.preview { position: relative; flex: none; }
+
+.removeAvatar {
+  position: absolute;
+  top: -4px;
+  right: -4px;
+  display: grid;
+  width: 28px;
+  height: 28px;
+  place-items: center;
+  border: 1px solid #e0e2e8;
+  border-radius: 50%;
+  background: white;
+  color: #383943;
+}
+
+.removeAvatar:hover { background: #fef2f2; color: #b91c1c; }
+.removeAvatar svg { width: 16px; height: 16px; }
+.upload { flex: 1; min-width: 0; }
+.file { display: block; width: 100%; margin-top: 4px; font-size: 12px; }
+.file::file-selector-button { margin-right: 8px; padding: 8px 12px; border: 0; border-radius: 8px; background: #e7ecff; color: #2047d9; cursor: pointer; }
+.fileHint { display: block; margin-top: 4px; color: #636770; font-size: 12px; }
+.uploadStatus { display: flex; align-items: center; gap: 8px; padding: 8px 12px; border-radius: 8px; background: #e7ecff; color: #2047d9; font-size: 14px; }
+.uploadStatus:empty { display: none; }
+.spinner { flex: none; width: 16px; height: 16px; border: 2px solid currentColor; border-right-color: transparent; border-radius: 50%; }
+.error { color: #b91c1c; }
+.buttons, .formActions { display: flex; flex-wrap: wrap; gap: 8px; }
+.formActions { justify-content: flex-end; }
+.primary { min-height: 40px; gap: 8px; padding: 8px 16px; }
+.secondary { min-height: 36px; gap: 6px; padding: 8px 12px; background: #eff0f4; color: #191a1e; }
+.secondary:hover { background: #e2e4eb; }
+.danger { color: #b91c1c; }
+.primary.danger { color: white; background: #b91c1c; }
+.primary.danger:hover { background: #991b1b; }
+.primary.danger:disabled { color: #8a8d96; background: #eff0f4; }
+
+@media (width >= 640px) {
+  .form { padding: 24px; }
+}
+
+@media (prefers-reduced-motion: no-preference) {
+  .spinner { animation: spin 1s linear infinite; }
+  .removeAvatar { transition: background-color 150ms, color 150ms; }
+}
+
+@keyframes spin {
+  to { transform: rotate(360deg); }
+}

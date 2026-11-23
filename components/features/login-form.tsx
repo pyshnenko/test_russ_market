@@ -1,19 +1,22 @@
 "use client";
 
 import { useActionState } from "react";
+import Button from "@mui/material/Button";
+import clsx from "clsx";
+import styles from "@/components/ui/notice.module.css";
 import { login } from "@/app/login/actions";
 
 export function LoginForm() {
   const [error, action, pending] = useActionState(login, "");
   return (
-    <form action={action} className="grid w-full max-w-sm gap-4 rounded-2xl bg-white p-8">
-      <h1 className="text-2xl">Вход в CRM</h1>
-      <label className="grid gap-2 text-sm">
+    <form action={action} className={clsx(styles.card, styles.login)}>
+      <h1 className={styles.loginTitle}>Вход в CRM</h1>
+      <label className={styles.loginField}>
         Пароль менеджера
-        <input type="password" name="password" required maxLength={256} autoComplete="current-password" className="rounded-lg bg-[#eff0f4] px-4 py-3" />
+        <input type="password" name="password" required maxLength={256} autoComplete="current-password" className={styles.password} />
       </label>
-      {error && <p role="alert" className="text-sm text-red-700">{error}</p>}
-      <button disabled={pending} className="rounded-lg bg-[#5978ec] px-4 py-3 text-white disabled:opacity-60">{pending ? "Вход…" : "Войти"}</button>
+      {error && <p role="alert" className={styles.error}>{error}</p>}
+      <Button type="submit" variant="contained" disabled={pending} className={styles.button}>{pending ? "Вход…" : "Войти"}</Button>
     </form>
   );
 }

@@ -1,0 +1,73 @@
+.header {
+  display: flex;
+  flex: none;
+  flex-wrap: wrap;
+  align-items: center;
+  justify-content: space-between;
+  gap: 0.5rem;
+  margin-bottom: 0.75rem;
+}
+
+.heading { font-size: 22px; font-weight: 400; letter-spacing: -0.045em; }
+.saveActions { display: flex; align-items: center; gap: 0.25rem; }
+.saveButton { min-height: 36px; padding-inline: 10px; font-size: 12px; }
+
+.mobileTabs {
+  display: grid;
+  flex: none;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 4px;
+  margin-bottom: 8px;
+  padding: 4px;
+  border-radius: 12px;
+  background: white;
+}
+
+.mobileTab { min-height: 36px; padding-inline: 8px; border-radius: 8px; font-size: 14px; }
+.mobileTab[aria-pressed="true"] { background: #383943; color: white; }
+
+.workspace {
+  display: grid;
+  flex: 1;
+  min-height: 0;
+  grid-template-rows: minmax(0, 1fr);
+  gap: 8px;
+}
+
+.calendar {
+  display: flex;
+  flex-direction: column;
+  min-width: 0;
+  min-height: 0;
+  padding: 8px;
+  border-radius: 20px;
+  background: white;
+}
+
+@media (width < 768px) {
+  .calendar[data-inactive] { display: none; }
+}
+
+@media (width >= 640px) {
+  .heading { font-size: 32px; }
+  .calendar { padding: 12px; }
+  .saveActions { gap: 8px; }
+  .saveButton { min-height: 48px; padding-inline: 16px; font-size: 16px; }
+}
+
+@media (width >= 768px) {
+  .workspace { grid-template-columns: minmax(0, 1fr) minmax(230px, 25%); }
+  .mobileTabs { display: none; }
+}
+
+@media (width >= 1280px) {
+  .header { margin-bottom: 24px; }
+}
+
+@media (height <= 760px) {
+  .header { margin-bottom: 8px; }
+}
+
+@media (prefers-reduced-motion: no-preference) {
+  .mobileTab { transition: background-color 150ms, color 150ms; }
+}

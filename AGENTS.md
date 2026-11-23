@@ -5,7 +5,6 @@
 ## 1. Стек и архитектура
 - **Фреймворк:** Next.js (исключительно App Router). Никогда не используй `pages/` router, `getServerSideProps` или `getStaticProps`.
 - **Язык:** Строгий TypeScript (`strict: true`). Избегай `any`, используй `unknown` с type guards или Zod-схемы.
-- **Стилизация:** Tailwind CSS. Используй `clsx` и `tailwind-merge` (утилита `cn()`) для условных классов. Не пиши кастомный CSS, если задачу можно решить утилитами Tailwind.
 
 ## 2. Серверные и клиентские компоненты (RSC)
 - **Server-First подход:** По умолчанию все компоненты являются React Server Components (RSC).

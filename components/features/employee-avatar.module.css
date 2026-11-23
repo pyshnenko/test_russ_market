@@ -1,0 +1,4 @@
+.avatar { flex: none; object-fit: cover; }
+.small { width: 40px; height: 40px; border-radius: 5px; }
+.large { width: 72px; height: 72px; border-radius: 16px; font-size: 24px; }
+.initials { display: grid; place-items: center; background: #e7ecff; color: #2047d9; font-weight: 600; }

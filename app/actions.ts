@@ -4,7 +4,7 @@ import { z } from "zod";
 import { workspaceId } from "@/lib/access";
 import { getDatabaseErrorCode, isDatabaseUnavailable } from "@/lib/database-errors";
 import { loadSchedule, persistSchedule } from "@/lib/repository";
-import { patchShifts, schedulePatchSchema, workspaceSchema } from "@/lib/schedule";
+import { parseShiftKey, patchShifts, schedulePatchSchema, workspaceSchema } from "@/lib/schedule";
 
 const inputSchema = z.object({
   version: z.number().int().min(0).max(2_000_000_000),
@@ -47,7 +47,10 @@ export async function saveSchedule(previous: SaveResult, form: FormData): Promis
     const current = await loadSchedule(id);
     if (current.version !== version) return fail(conflict);
     const employeeIds = new Set(current.data.employees.map(({ id }) => id));
-    if (Object.keys(data.changes).some((key) => !employeeIds.has(key.split("/")[0]))) {
+    if (Object.keys(data.changes).some((key) => {
+      const cell = parseShiftKey(key);
+      return !cell || !employeeIds.has(cell.employeeId);
+    })) {
       return fail("Проверьте список сотрудников и назначенные смены.");
     }
     const workspace = workspaceSchema.safeParse({

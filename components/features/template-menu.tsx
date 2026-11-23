@@ -2,10 +2,12 @@
 
 import { useId, useState } from "react";
 import dynamic from "next/dynamic";
+import ButtonBase from "@mui/material/ButtonBase";
 import MenuItem from "@mui/material/MenuItem";
-import { cn } from "@/lib/cn";
-import { colors, type Template } from "@/lib/schedule";
+import clsx from "clsx";
+import type { Template } from "@/lib/schedule";
 import { Icon } from "./icon";
+import styles from "./template-menu.module.css";
 
 const Menu = dynamic(() => import("@mui/material/Menu"));
 
@@ -21,7 +23,7 @@ export function TemplateMenu({ templates, disabled, className, onApply }: {
 
   return (
     <>
-      <button id={`${id}-trigger`} type="button" aria-haspopup="menu" aria-expanded={open}
+      <ButtonBase id={`${id}-trigger`} type="button" aria-haspopup="menu" aria-expanded={open}
         aria-controls={open ? id : undefined} disabled={disabled || !templates.length}
         onClick={(event) => setAnchor(event.currentTarget)}
         onKeyDown={(event) => {
@@ -29,11 +31,11 @@ export function TemplateMenu({ templates, disabled, className, onApply }: {
           event.preventDefault();
           setAnchor(event.currentTarget);
         }}
-        className={cn(className, "focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-white", open && "bg-white/15")}
+        className={clsx(styles.trigger, className)}
       >
         <Icon name="grid" /> Применить шаблон
-        <span className={cn("motion-safe:transition-transform [&>svg]:size-3.5", open && "rotate-180")}><Icon name="down" /></span>
-      </button>
+        <span className={styles.arrow}><Icon name="down" /></span>
+      </ButtonBase>
       {open && <Menu
         anchorEl={anchor}
         open
@@ -45,20 +47,20 @@ export function TemplateMenu({ templates, disabled, className, onApply }: {
         anchorOrigin={{ vertical: "bottom", horizontal: "right" }}
         transformOrigin={{ vertical: "top", horizontal: "right" }}
         slotProps={{
-          paper: { className: "mt-2 max-h-[min(24rem,60dvh)]! min-w-56 rounded-xl! border border-[#e4e6ed] shadow-[0_12px_32px_rgba(31,36,55,0.15)]!" },
-          list: { id, "aria-labelledby": `${id}-trigger`, className: "grid gap-0.5 p-1.5!" },
+          paper: { className: styles.paper },
+          list: { id, "aria-labelledby": `${id}-trigger`, className: styles.list },
         }}
       >
         {templates.map((template) => (
           <MenuItem key={template.id}
-            className="min-h-11! gap-2.5 rounded-lg! px-2.5! py-1.5! hover:bg-[#eff0f4]! focus:bg-[#e7ecff]! motion-safe:transition-colors"
+            className={styles.item}
             onClick={() => { setAnchor(null); onApply(template); }}>
-            <span aria-hidden="true" className={cn("grid size-6 shrink-0 place-items-center rounded-md", colors[template.color].className)}>
-              <span className="size-2 rounded-full bg-current" />
+            <span aria-hidden="true" data-color={template.color} className={styles.swatch}>
+              <span className={styles.dot} />
             </span>
-            <span className="grid min-w-0">
-              <span className="truncate text-sm font-medium text-[#191a1e]">{template.name}</span>
-              <span className="text-xs text-[#636770]">{template.start} – {template.end}</span>
+            <span className={styles.details}>
+              <span className={styles.name}>{template.name}</span>
+              <span className={styles.time}>{template.start} – {template.end}</span>
             </span>
           </MenuItem>
         ))}

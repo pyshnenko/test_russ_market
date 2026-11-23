@@ -1,0 +1,79 @@
+.viewport {
+  --employee-width: 9rem;
+  flex: 1;
+  min-height: 0;
+  overflow: auto;
+  overscroll-behavior: contain;
+}
+
+.viewport:focus-visible,
+.dateButton:focus-visible {
+  outline: 2px solid #5978ec;
+}
+
+.table {
+  width: 100%;
+  height: 100%;
+  table-layout: fixed;
+  border-collapse: separate;
+  border-spacing: 0;
+  text-align: left;
+  font-size: 14px;
+}
+
+.weekTable { min-width: calc(var(--employee-width) + 500px); }
+.employeeColumn { width: var(--employee-width); }
+.header, .footer { position: sticky; z-index: 20; background: white; }
+.header { top: 0; color: #777b84; }
+.footer { bottom: 0; }
+.headerRow { height: 60px; }
+
+.employeeHeading, .employee, .coverageHeading {
+  position: sticky;
+  left: 0;
+  z-index: 10;
+  font-weight: 400;
+}
+
+.employeeHeading, .dateHeading { border-bottom: 1px solid #e0e2e8; }
+.employeeHeading, .coverageHeading { padding-inline: 12px; background: white; }
+.dateHeading { padding-inline: 4px; text-align: center; font-weight: 400; white-space: nowrap; }
+.dateHeading[data-today] { color: #3157db; font-weight: 600; }
+.dateButton { padding: 2px 6px; border-radius: 6px; }
+.dateButton:enabled:hover { background: #eff0f4; }
+.monthDate { display: grid; justify-items: center; font-size: 12px; line-height: 18px; }
+.dateHeading:not([data-today]) .monthDay { color: #191a1e; }
+.row { background: white; }
+.row:nth-child(even) { background: #f6f6f8; }
+.employee { padding: 10px 8px; background: inherit; }
+.employeeInfo { display: flex; align-items: center; gap: 8px; }
+.employeeText { min-width: 0; }
+.employeeName { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; font-size: 14px; line-height: 20px; letter-spacing: -0.02em; }
+.employeeHours { margin-top: 2px; color: #777b84; font-size: 12px; }
+.empty { padding-block: 32px; color: #777b84; text-align: center; }
+.spacer { height: 100%; }
+.coverageHeading, .coverage { padding-block: 8px; border-top: 1px solid #e0e2e8; }
+.coverageHeading { color: #777b84; }
+.coverage { background: #fbe5e5; color: #c93038; text-align: center; }
+.coverage[data-covered] { background: #ebeffd; color: #2047d9; }
+
+@media (width >= 640px) {
+  .viewport { --employee-width: 12rem; }
+  .table { font-size: 16px; }
+  .coverageHeading, .coverage { padding-block: 12px; }
+}
+
+@media (width >= 1280px) {
+  .viewport { --employee-width: 13.75rem; }
+  .employeeName { font-size: 15px; }
+}
+
+@media (prefers-reduced-motion: no-preference) {
+  .body { animation: period 280ms ease-out both; }
+  .coverage { transition: background-color 150ms, color 150ms; }
+}
+
+@keyframes period {
+  from { opacity: 0.2; }
+  to { opacity: 1; }
+}
