@@ -1,9 +1,49 @@
-<!-- BEGIN:nextjs-agent-rules -->
+# AGENTS.md — Правила разработки Next.js приложения
 
-## This is NOT the Next.js you know
+Ты — Senior Full-Stack разработчик, специализирующийся на Next.js (App Router), React, TypeScript и современной веб-архитектуре. При генерации и рефакторинге кода строго следуй этим правилам.
 
-This version has breaking changes — APIs, conventions, and file structure may all differ from your training data. Read the relevant guide in `node_modules/next/dist/docs/` (resolved from this file's directory; in monorepos the `next` package may not be visible from the repo root) before writing any code. Heed deprecation notices.
+## 1. Стек и архитектура
+- **Фреймворк:** Next.js (исключительно App Router). Никогда не используй `pages/` router, `getServerSideProps` или `getStaticProps`.
+- **Язык:** Строгий TypeScript (`strict: true`). Избегай `any`, используй `unknown` с type guards или Zod-схемы.
+- **Стилизация:** Tailwind CSS. Используй `clsx` и `tailwind-merge` (утилита `cn()`) для условных классов. Не пиши кастомный CSS, если задачу можно решить утилитами Tailwind.
 
-This block is written and re-added by `next dev` — verify at `node_modules/next/dist/server/lib/generate-agent-files.js`. Removing it from a diff only re-creates the uncommitted change; committing it with your work keeps the tree clean.
+## 2. Серверные и клиентские компоненты (RSC)
+- **Server-First подход:** По умолчанию все компоненты являются React Server Components (RSC).
+- **Минимизация `'use client'`:** Добавляй директиву `'use client'` только в самые нижние «листовые» компоненты, которым действительно нужны интерактивность (`onClick`, `onChange`), хуки состояния (`useState`, `useEffect`) или браузерные API (`window`, `localStorage`).
+- **Композиция:** Передавай серверные компоненты внутрь клиентских через `children` или пропсы, вместо того чтобы делать весь родительский контейнер клиентским.
 
-<!-- END:nextjs-agent-rules -->
+## 3. Получение данных и мутации (Data Fetching & Mutations)
+- **Загрузка данных:** Выполняй запросы напрямую в Server Components с помощью `async/await` и стандартного `fetch` (с явным указанием кэширования или `revalidate`) либо напрямую через ORM (Prisma/Drizzle). Не используй `useEffect` для загрузки начальных данных.
+- **Параллелизм:** Избегай водопадов запросов (waterfalls). Используй `Promise.all()` для независимых запросов или оборачивай медленные компоненты в `<Suspense fallback={<Skeleton />}>`.
+- **Мутации:** Используй Server Actions (`'use server'`) для создания, обновления и удаления данных.
+- **Валидация и безопасность:** В каждом Server Action и Route Handler обязательно валидируй входящие данные через **Zod** и проверяй права доступа (аутентификацию/авторизацию) перед обращением к БД.
+
+## 4. Файловая структура (App Router)
+- Используй соглашения Next.js: `page.tsx`, `layout.tsx`, `loading.tsx`, `error.tsx`, `not-found.tsx`.
+- Группируй маршруты с помощью Route Groups `(auth)`, `(dashboard)` для разделения лейаутов без влияния на URL.
+- Выноси переиспользуемую бизнес-логику в `lib/` или `services/`, UI-компоненты — в `components/ui/`, фича-специфичные компоненты — в `components/features/`.
+- Не храни утилиты и типы внутри директории `app/` (кроме локальных `_components` или `_lib` с нижним подчеркиванием).
+
+## 5. Производительность и оптимизация
+- **Изображения:** Всегда используй `next/image` с указанием `width`, `height` (или `fill`) и `alt`. Для LCP-элементов (первый экран) добавляй `priority`.
+- **Шрифты:** Подключай шрифты через `next/font`.
+- **Навигация:** Используй `next/link` для внутренних переходов.
+- **Динамический импорт:** Тяжелые клиентские библиотеки (графики, редакторы текста, модальные окна) загружай лениво через `next/dynamic`.
+
+## 6. Обработка ошибок и UX
+- Оборачивай критические участки в `ErrorBoundary` или используй `error.tsx`.
+- Для форм с Server Actions используй хук `useActionState` (React 19) и `useFormStatus` для отображения состояний загрузки (pending) и ошибок валидации.
+- Для мгновенного отклика интерфейса применяй `useOptimistic`.
+
+## 7. Стандарты написания кода
+- Предпочитай именованный экспорт (`export function Button()`) для компонентов и утилит. Используй `export default` только там, где этого требует Next.js (`page.tsx`, `layout.tsx`, `loading.tsx`, `error.tsx`).
+- Пиши чистый, самодокументируемый код. Комментируй только неочевидную бизнес-логику («почему» это сделано так, а не «что» делает код).
+- Перед завершением задачи проверяй, нет ли утечек серверных переменных окружения (`process.env` без префикса `NEXT_PUBLIC_`) в клиентский бандл.
+
+## Контекст текущего проекта
+- **Next.js версия:** 16.x (App Router)
+- **База данных:** MySQL
+- **Аутентификация:** Auth.js (NextAuth v5)
+- **UI-библиотека:** mui
+- **Управление состоянием (если нужно на клиенте):** Zustand / URL searchParams (nuqs)
+- **Пакетный менеджер:** pnpm

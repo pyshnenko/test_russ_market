@@ -1,36 +1,41 @@
-This is a [Next.js](https://nextjs.org) project bootstrapped with [`create-next-app`](https://nextjs.org/docs/app/api-reference/cli/create-next-app).
+# График смен
 
-## Getting Started
+Интерфейс планирования смен сотрудников на Next.js App Router, React и TypeScript.
 
-First, run the development server:
+## Запуск
+
+Нужны Node.js 22.13+ и pnpm 10.
 
 ```bash
-npm run dev
-# or
-yarn dev
-# or
+pnpm install
 pnpm dev
-# or
-bun dev
 ```
 
-Open [http://localhost:3000](http://localhost:3000) with your browser to see the result.
+Откройте http://localhost:3000. Без настроек приложение запускается в деморежиме с восемью сотрудниками и тремя шаблонами. Сохранение создаёт отдельный график для браузера и записывает его в локальную базу SQLite в каталоге `.data/`.
 
-You can start editing the page by modifying `app/page.tsx`. The page auto-updates as you edit the file.
+## Работа с графиком
 
-This project uses [`next/font`](https://nextjs.org/docs/app/building-your-application/optimizing/fonts) to automatically optimize and load [Geist](https://vercel.com/font), a new font family for Vercel.
+- Переключайтесь между неделей и месяцем. Стрелки меняют период, нажатие на название периода возвращает к текущей дате.
+- Поиск принимает имя, фамилию или их части в любом порядке.
+- Нажмите на одну или несколько ячеек и выберите шаблон или укажите своё время. Клавиши 1–9 применяют соответствующие шаблоны, Escape снимает выделение.
+- Значок карандаша или двойной клик открывает редактирование назначенной смены. В диалоге можно удалить смену. Кнопка «+» добавляет шаблон, а кнопка с номером открывает его редактирование.
+- Покрытие показывает количество сотрудников со сменами в каждый день. Часы у сотрудника суммируются за видимый период. Время окончания раньше начала считается переходом через полночь.
+- «Сохранить» записывает черновик. «Опубликовать» одновременно сохраняет черновик и фиксирует опубликованную версию. При конфликте версий сервер отклоняет перезапись.
 
-## Learn More
+## PostgreSQL, MySQL и Auth.js
 
-To learn more about Next.js, take a look at the following resources:
+Скопируйте `.env.example` в `.env.local`, задайте секрет Auth.js, пароль менеджера и адрес приложения в `AUTH_URL`. Укажите адрес существующей базы в `DATABASE_URL`.
 
-- [Next.js Documentation](https://nextjs.org/docs) - learn about Next.js features and API.
-- [Learn Next.js](https://nextjs.org/learn) - an interactive Next.js tutorial.
+| База | Формат адреса |
+| --- | --- |
+| PostgreSQL | `postgresql://user:password@host:5432/schedule` |
+| MySQL | `mysql://user:password@host:3306/schedule` |
 
-You can check out [the Next.js GitHub repository](https://github.com/vercel/next.js) - your feedback and contributions are welcome!
+Приложение выбирает драйвер по схеме адреса. Если логин или пароль содержит специальные символы URI, закодируйте их по отдельности перед подстановкой. Таблица `schedule_workspaces` создаётся при первом обращении. Учётной записи базы нужны права создания таблицы в выбранной схеме и права SELECT, INSERT и UPDATE для этой таблицы.
 
-## Deploy on Vercel
+При заданном `DATABASE_URL` вход выполняется по паролю менеджера. Сервер проверяет сессию, валидирует данные через Zod и применяет изменения только к ожидаемой версии графика.
 
-The easiest way to deploy your Next.js app is to use the [Vercel Platform](https://vercel.com/new?utm_medium=default-template&filter=next.js&utm_source=create-next-app&utm_campaign=create-next-app-readme) from the creators of Next.js.
-
-Check out our [Next.js deployment documentation](https://nextjs.org/docs/app/building-your-application/deploying) for more details.
+```bash
+pnpm lint
+pnpm build
+```
