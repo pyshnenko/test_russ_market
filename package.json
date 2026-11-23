@@ -6,7 +6,8 @@
     "dev": "next dev",
     "build": "next build",
     "start": "next start",
-    "lint": "eslint"
+    "lint": "eslint",
+    "test": "tsc -p tsconfig.test.json && node --conditions=react-server --test .test-build/tests/schedule.test.js .test-build/tests/repository.test.js"
   },
   "dependencies": {
     "@emotion/react": "^11.14.0",
@@ -22,6 +23,7 @@
     "react-dom": "19.3.0",
     "server-only": "^0.0.1",
     "sharp": "^0.35.5",
+    "swagger-ui-dist": "^5.36.0",
     "tailwind-merge": "^3.7.1",
     "zod": "^4.6.7"
   },

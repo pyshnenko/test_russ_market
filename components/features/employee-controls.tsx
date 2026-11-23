@@ -16,10 +16,30 @@ const field = "mt-1 w-full rounded-lg bg-[#eff0f4] px-3 py-2.5 outline-none focu
 
 type Intent = "create" | "edit" | "delete";
 
+function hasAvatarUpload(data: FormData | null) {
+  const avatar = data?.get("avatar");
+  return avatar instanceof File && avatar.size > 0;
+}
+
+function AvatarUploadStatus() {
+  const { pending, data } = useFormStatus();
+  return (
+    <div role="status" className="flex items-center gap-2 rounded-lg bg-[#e7ecff] px-3 py-2 text-sm text-[#2047d9] empty:hidden">
+      {pending && hasAvatarUpload(data) && (
+        <>
+          <span aria-hidden="true" className="size-4 shrink-0 rounded-full border-2 border-current border-r-transparent motion-safe:animate-spin" />
+          Загружаем и обрабатываем аватар…
+        </>
+      )}
+    </div>
+  );
+}
+
 function EmployeeSubmit({ intent }: { intent: Intent }) {
-  const { pending } = useFormStatus();
+  const { pending, data } = useFormStatus();
+  const idleLabel = intent === "delete" ? "Удалить сотрудника" : "Сохранить";
   return <button disabled={pending} className={cn(primary, intent === "delete" && "bg-red-700 hover:bg-red-800")}>
-    {pending ? "Сохранение…" : intent === "delete" ? "Удалить сотрудника" : "Сохранить"}
+    {pending ? hasAvatarUpload(data) ? "Загрузка…" : "Сохранение…" : idleLabel}
   </button>;
 }
 
@@ -68,6 +88,7 @@ function EmployeeDialog({ intent, employee, version, onClose }: {
                 <span id="avatar-format" className="mt-1 block text-xs text-[#636770]">JPEG, PNG или WebP, до 5 МБ</span>
               </label>
             </div>
+            <AvatarUploadStatus />
             {employee?.avatar && !preview && (
               <label className="flex items-center gap-2">
                 <input type="checkbox" name="removeAvatar" checked={removeAvatar} onChange={(event) => setRemoveAvatar(event.target.checked)} className="accent-[#5978ec]" />

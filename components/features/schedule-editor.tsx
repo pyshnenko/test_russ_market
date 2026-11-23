@@ -378,10 +378,10 @@ export function ScheduleEditor({ initial, today }: { initial: SchedulePageData; 
                 {days.map((day) => <col style={view === "month" ? { width: monthColumnWidth } : undefined} key={dateKey(day)} />)}
               </colgroup>
               <thead className="sticky top-0 z-20 bg-white">
-                <tr className="text-[#777b84]">
-                  <th scope="col" className="sticky left-0 z-10 border-b border-[#e0e2e8] bg-white px-3 py-2 font-normal sm:py-3">Сотрудник</th>
+                <tr className="h-[60px] text-[#777b84]">
+                  <th scope="col" className="sticky left-0 z-10 border-b border-[#e0e2e8] bg-white px-3 font-normal">Сотрудник</th>
                   {days.map((day) => (
-                    <th scope="col" key={dateKey(day)} className={cn("border-b border-[#e0e2e8] px-1 py-2 text-center font-normal whitespace-nowrap", view === "week" && "sm:py-3", dateKey(day) === today && "font-semibold text-[#3157db]")}>
+                    <th scope="col" key={dateKey(day)} className={cn("border-b border-[#e0e2e8] px-1 text-center font-normal whitespace-nowrap", dateKey(day) === today && "font-semibold text-[#3157db]")}>
                       <button type="button" aria-haspopup="dialog" aria-label={`Быстро назначить смену: ${fullDate.format(day)}`} disabled={pending || !!rosterRequest} onClick={() => setAssignmentDate(dateKey(day))} className="cursor-pointer rounded-md px-1.5 py-0.5 enabled:hover:bg-[#eff0f4] focus-visible:outline-2 focus-visible:outline-[#5978ec] disabled:cursor-default">
                         {view === "month" ? (
                           <span className="grid justify-items-center text-xs leading-[18px]">
@@ -435,8 +435,8 @@ export function ScheduleEditor({ initial, today }: { initial: SchedulePageData; 
                             }} onDoubleClick={editCell} className={cn(
                               "flex h-12 w-full cursor-pointer flex-col items-center justify-center gap-1 rounded-[9px] border px-1 text-sm leading-tight enabled:hover:border-[#5978ec] enabled:active:ring-1 enabled:active:ring-[#5978ec] disabled:cursor-default motion-safe:transition-[background-color,border-color,color,box-shadow] motion-safe:duration-150 xl:h-16 [@media(max-height:760px)]:h-12",
                               shift
-                                ? active ? "border-transparent bg-[#5978ec] text-white" : cn("border-transparent", shiftColors[shift.color])
-                                : active ? "rounded-none border-solid border-[#5978ec] bg-[#e7ecff]" : "border-dashed border-[#dcdfe7]",
+                                ? active ? "border-transparent bg-[#5978ec] text-white" : cn("border-transparent enabled:hover:inset-ring-1 enabled:hover:inset-ring-[#5978ec]", shiftColors[shift.color])
+                                : active ? "rounded-none border-solid border-[#5978ec] bg-[#e7ecff]" : "border-dashed border-[#dcdfe7] enabled:hover:bg-[#f0f4ff]",
                               shift && "enabled:cursor-grab enabled:active:cursor-grabbing",
                               dragSource?.kind === "cell" && dragSource.key === key && "opacity-50",
                               dropTarget === key && "border-solid border-[#5978ec] ring-2 ring-inset ring-[#5978ec]",
@@ -493,7 +493,7 @@ export function ScheduleEditor({ initial, today }: { initial: SchedulePageData; 
           </div>
           <div className="grid min-h-12 shrink content-start gap-1 overflow-y-auto overscroll-contain">
             {templates.map((template, index) => (
-              <div key={template.id} className={cn("relative rounded-[9px] border-l-2 bg-[#eff0f4]", { blue: "border-[#b6c6ff]", violet: "border-[#d3acff]", green: "border-[#a4eadf]", amber: "border-[#f5d696]" }[template.color])}>
+              <div key={template.id} className={cn("relative rounded-[9px] border-l-[3px] bg-[#eff0f4]", { blue: "border-[#b6c6ff]", violet: "border-[#d3acff]", green: "border-[#a4eadf]", amber: "border-[#f5d696]" }[template.color])}>
                 <button
                   type="button" disabled={pending} draggable={!pending}
                   onDragStart={(event) => startDrag(event, { kind: "template", id: template.id })}

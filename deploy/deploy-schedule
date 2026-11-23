@@ -12,6 +12,16 @@ if [[ $# -ne 1 || ! "$sha" =~ ^[a-f0-9]{40}$ ]]; then
   exit 2
 fi
 
+export NVM_DIR="${NVM_DIR:-$HOME/.nvm}"
+if [[ -s "$NVM_DIR/nvm.sh" ]]; then
+  set +u
+  if ! source "$NVM_DIR/nvm.sh" --no-use || ! nvm use --silent 22; then
+    echo "Install Node.js 22 under the deployment account with nvm." >&2
+    exit 1
+  fi
+  set -u
+fi
+
 for dependency in git tar node pm2 curl flock ss; do
   command -v "$dependency" >/dev/null || { echo "Missing executable: $dependency" >&2; exit 1; }
 done
