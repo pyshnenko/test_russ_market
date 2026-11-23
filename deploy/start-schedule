@@ -1,0 +1,10 @@
+#!/usr/bin/env bash
+set -euo pipefail
+
+root="$HOME/apps/test-russ-market"
+port=3010
+if [[ -f "$root/shared/port" ]]; then
+  port="$(cat "$root/shared/port")"
+fi
+cd "$root/current"
+exec node node_modules/next/dist/bin/next start --hostname 127.0.0.1 --port "$port"

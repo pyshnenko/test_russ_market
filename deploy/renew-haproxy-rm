@@ -1,0 +1,32 @@
+#!/usr/bin/env bash
+set -euo pipefail
+umask 077
+
+domain=rm.pyshnet.ru
+if [[ -n "${RENEWED_DOMAINS:-}" && " $RENEWED_DOMAINS " != *" $domain "* ]]; then
+  exit 0
+fi
+
+lineage="${RENEWED_LINEAGE:-/etc/letsencrypt/live/$domain}"
+destination="/etc/haproxy/certs/$domain.pem"
+mkdir -p -- "$(dirname -- "$destination")"
+staging="$(mktemp -d /etc/haproxy/.rm-certificate.XXXXXX)"
+trap 'rm -f -- "$staging/new.pem" "$staging/previous.pem"; rmdir -- "$staging"' EXIT
+
+cat -- "$lineage/fullchain.pem" "$lineage/privkey.pem" > "$staging/new.pem"
+if [[ -f "$destination" ]]; then
+  cp -- "$destination" "$staging/previous.pem"
+fi
+mv -f -- "$staging/new.pem" "$destination"
+
+if haproxy -c -f /etc/haproxy/haproxy.cfg && systemctl reload haproxy; then
+  exit 0
+fi
+
+if [[ -f "$staging/previous.pem" ]]; then
+  mv -f -- "$staging/previous.pem" "$destination"
+else
+  rm -f -- "$destination"
+fi
+echo "Could not load the renewed certificate for $domain." >&2
+exit 1

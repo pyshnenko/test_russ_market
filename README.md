@@ -39,3 +39,45 @@ pnpm dev
 pnpm lint
 pnpm build
 ```
+
+## Автодеплой через GitHub Actions
+
+Workflow `.github/workflows/ci-deploy.yml` проверяет пул-реквесты и коммиты в `master`. Деплой запускается после успешной проверки коммита в `master` или вручную из вкладки Actions с выбранной веткой `master`.
+
+В настройках репозитория в разделе **Secrets and variables → Actions** задайте переменные `DEPLOY_HOST`, `DEPLOY_USER` и, при нестандартном SSH-порте, `DEPLOY_PORT`. Добавьте секреты `DEPLOY_SSH_KEY` с приватным ключом отдельной учётной записи деплоя и `DEPLOY_KNOWN_HOSTS` с проверенной записью ключа демосервера.
+
+### Подготовка Ubuntu и PM2
+
+Под выделенной учётной записью деплоя проверьте, что из неинтерактивного SSH доступны Node.js 22.13+, pnpm или Corepack, PM2 и Git. Эта же учётная запись должна иметь доступ на чтение репозитория GitHub. Ключ для подключения GitHub Actions к серверу и ключ сервера для чтения приватного репозитория выполняют разные задачи.
+
+Из копии репозитория с файлами деплоя на сервере выполните:
+
+```bash
+root="$HOME/apps/test-russ-market"
+install -d -m 700 "$root"/{shared,bin}
+git clone --bare https://github.com/pyshnenko/test_russin_market.git "$root/repository.git"
+install -m 755 deploy/start-schedule "$root/bin/start-schedule"
+sudo install -m 755 deploy/deploy-schedule /usr/local/bin/deploy-schedule
+install -m 600 .env.example "$root/shared/.env.local"
+```
+
+Заполните `$root/shared/.env.local` реквизитами MySQL и настройками Auth.js. В `AUTH_URL` укажите публичный HTTPS-адрес графика. Процесс `test-russ-market-schedule` слушает `127.0.0.1:3010`. Если порт занят, задайте свободный порт в `$root/shared/port`. Настройте отдельный виртуальный хост в существующем обратном прокси и направьте его на этот локальный порт.
+
+Для `rm.pyshnet.ru` задайте `AUTH_URL=https://rm.pyshnet.ru`. В HTTPS-блоке `server` для этого домена используйте [конфигурацию прокси](deploy/nginx-rm.conf) вместо существующего `location /` этого же хоста, если он уже задан. Если меняете порт приложения, укажите тот же порт в `proxy_pass`. Конфигурация разрешает запросы до 6 МБ, чтобы через прокси проходила загрузка аватаров. Перед применением проверьте конфигурацию командой `sudo nginx -t`.
+
+Если входящий порт 443 обслуживает HAProxy в режиме TCP с маршрутизацией по SNI, для этого домена можно использовать [маршрут HAProxy](deploy/haproxy-rm.cfg). Добавьте указанное в файле правило в `frontend main_ssl` перед `default_backend` и перенесите остальные секции в конфигурацию HAProxy. Локальный TLS-вход на `127.0.0.1:9443` требует свободного порта и PEM-файла с цепочкой сертификатов и приватным ключом. Измените путь к PEM при необходимости. Маршрут передаёт HTTP на локальный Next.js и сохраняет исходный IP через PROXY v2. Перед перезагрузкой проверьте объединённый конфиг командой `sudo haproxy -c -f /etc/haproxy/haproxy.cfg`.
+
+До добавления маршрута HAProxy установите и один раз запустите хук Certbot:
+
+```bash
+sudo install -m 755 deploy/renew-haproxy-rm /etc/letsencrypt/renewal-hooks/deploy/renew-haproxy-rm
+sudo /etc/letsencrypt/renewal-hooks/deploy/renew-haproxy-rm
+```
+
+Хук берёт `fullchain.pem` и `privkey.pem` из `/etc/letsencrypt/live/rm.pyshnet.ru/` и записывает объединённый файл с правами `600` в `/etc/haproxy/certs/rm.pyshnet.ru.pem`. При продлении он использует путь, который передаёт Certbot. Если имя сертификата отличается от домена, проверьте его командой `sudo certbot certificates` и для первого запуска передайте фактический каталог через `sudo env RENEWED_LINEAGE=/etc/letsencrypt/live/ИМЯ_СЕРТИФИКАТА ...`.
+
+Workflow передаёт SHA проверенного коммита в `deploy-schedule`. Скрипт собирает релиз в отдельном каталоге и перезапускает только процесс графика. Если страница входа новой версии не открывается, скрипт восстанавливает предыдущий релиз и завершает workflow с ошибкой. Конфигурация и база общие для релизов, а собранные версии хранятся в `$root/releases`.
+
+После первого успешного деплоя под учётной записью деплоя выполните `pm2 save` и настройте её запуск PM2 после перезагрузки, если он ещё не настроен.
+
+После подготовки сервера и SSH-настроек установите переменную репозитория `DEPLOY_ENABLED=true`. До этого GitHub Actions будет выполнять проверку сборки.
