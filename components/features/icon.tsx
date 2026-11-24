@@ -12,6 +12,8 @@ const paths = {
   close: "m6 6 12 12M18 6 6 18",
   grid: "M4 4h16v16H4zM12 4v16M4 12h16",
   trash: "M4 7h16M9 7V4h6v3M6 7l1 13h10l1-13M10 10v7m4-7v7",
+  chat: "M21 11.5a8.5 8.5 0 0 1-8.5 8.5H4l1.7-3.4A8.5 8.5 0 1 1 21 11.5Z M8.5 11.5h7",
+  send: "m22 2-7 20-4-9-9-4 20-7ZM22 2 11 13",
 };
 
 export function Icon({ name }: { name: keyof typeof paths }) {

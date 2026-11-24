@@ -1,5 +1,7 @@
 import type { Metadata } from "next";
 import localFont from "next/font/local";
+import { SupportChat } from "@/components/features/support-chat";
+import { VisitorNotification } from "@/components/features/visitor-notification";
 import { AppThemeProvider } from "@/components/ui/theme-provider";
 import "./globals.css";
 
@@ -25,7 +27,11 @@ export const metadata: Metadata = {
 export default function RootLayout({ children }: LayoutProps<"/">) {
   return (
     <html lang="ru" className={latin.variable + " " + cyrillic.variable}>
-      <body><AppThemeProvider>{children}</AppThemeProvider></body>
+      <body>
+        <VisitorNotification />
+        <AppThemeProvider>{children}</AppThemeProvider>
+        <SupportChat />
+      </body>
     </html>
   );
 }
