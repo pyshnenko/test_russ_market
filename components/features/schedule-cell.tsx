@@ -1,4 +1,3 @@
-import type { DragEvent } from "react";
 import { duration, type Shift } from "@/lib/schedule";
 
 import { Icon } from "./icon";
@@ -11,9 +10,9 @@ function shortTime(time: string) {
 }
 
 export function ScheduleCell({
-  title, shift, compact, selected, disabled, dragging, dropTarget,
-  onSelect, onEdit, onDragStart, onDragEnd, onDragOver, onDragLeave, onDrop,
+  cellKey, title, shift, compact, selected, disabled, dragging, dropTarget, onSelect, onEdit,
 }: {
+  cellKey: string;
   title: string;
   shift?: Shift;
   compact: boolean;
@@ -23,20 +22,13 @@ export function ScheduleCell({
   dropTarget: boolean;
   onSelect: () => void;
   onEdit: () => void;
-  onDragStart: (event: DragEvent<HTMLButtonElement>) => void;
-  onDragEnd: () => void;
-  onDragOver: (event: DragEvent<HTMLTableCellElement>) => void;
-  onDragLeave: (event: DragEvent<HTMLTableCellElement>) => void;
-  onDrop: (event: DragEvent<HTMLTableCellElement>) => void;
 }) {
   return (
-    <td className={styles.cell} onDragOver={onDragOver} onDragLeave={onDragLeave} onDrop={onDrop}>
+    <td className={styles.cell} data-shift-drop-key={disabled ? undefined : cellKey}>
       <button
         type="button"
         disabled={disabled}
-        draggable={!!shift && !disabled}
-        onDragStart={onDragStart}
-        onDragEnd={onDragEnd}
+        data-shift-source={shift && !disabled ? cellKey : undefined}
         aria-pressed={selected}
         aria-label={shift ? `${title}, ${shift.name}, ${shift.start}–${shift.end}` : `${title}, без смены`}
         title={compact && shift ? `${shift.name} · ${shift.start}–${shift.end}` : undefined}

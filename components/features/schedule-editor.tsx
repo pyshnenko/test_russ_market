@@ -1,6 +1,6 @@
 "use client";
 
-import { useActionState, useCallback, useEffect, useLayoutEffect, useMemo, useRef, useState, type DragEvent } from "react";
+import { useActionState, useCallback, useEffect, useLayoutEffect, useMemo, useRef, useState } from "react";
 import { useFormStatus } from "react-dom";
 import dynamic from "next/dynamic";
 import Alert from "@mui/material/Alert";
@@ -12,14 +12,12 @@ import { ScheduleButton } from "./schedule-buttons";
 import { ScheduleTable } from "./schedule-table";
 import { ScheduleTemplates } from "./schedule-templates";
 import { SchedulePagination, ScheduleSelectionActions, ScheduleToolbar } from "./schedule-toolbar";
+import { useScheduleDrag, type DragSource } from "./use-schedule-drag";
 import styles from "./schedule.module.css";
 
 const ShiftDialog = dynamic(() => import("./shift-dialog").then((module) => module.ShiftDialog));
 const DateAssignment = dynamic(() => import("./date-assignment").then((module) => module.DateAssignment));
 
-type DragSource = { kind: "cell"; key: string } | { kind: "template"; id: string };
-const shiftDragType = "application/x-schedule-shift";
-const shiftDragEffects = { cell: "move", template: "copy" } as const;
 type DialogState =
   | { kind: "shift"; keys: string[]; title: string; value?: Shift }
   | { kind: "template"; value?: Template };
@@ -63,8 +61,6 @@ export function ScheduleEditor({ initial, today }: { initial: SchedulePageData; 
   const [selected, setSelected] = useState<string[]>([]);
   const [dialog, setDialog] = useState<DialogState | null>(null);
   const [assignmentDate, setAssignmentDate] = useState<string | null>(null);
-  const [dragSource, setDragSource] = useState<DragSource | null>(null);
-  const [dropTarget, setDropTarget] = useState<string | null>(null);
   const [feedback, setFeedback] = useState("");
   const [edited, setEdited] = useState(0);
   const [notice, setNotice] = useState<SaveNotice | null>(null);
@@ -103,6 +99,7 @@ export function ScheduleEditor({ initial, today }: { initial: SchedulePageData; 
   }, {
     version: initial.version, publishedAt: initial.publishedAt,
   } satisfies SaveResult);
+  const { dragSource, dropTarget, preview, onPointerDown, onClickCapture } = useScheduleDrag(grid, pending || !!rosterRequest, dropShift);
   const dirty = edited !== (formState.savedEdit ?? 0);
 
   function closeNotice(id: number) {
@@ -176,54 +173,20 @@ export function ScheduleEditor({ initial, today }: { initial: SchedulePageData; 
     updateShifts(Object.fromEntries(keys.map((key) => [key, { name, start, end, color }])));
   }, [pending, updateShifts]);
 
-  function finishDrag() {
-    setDragSource(null);
-    setDropTarget(null);
-  }
-
-  function startDrag(event: DragEvent<HTMLButtonElement>, source: DragSource) {
-    if (pending) {
-      event.preventDefault();
-      return;
-    }
-    event.dataTransfer.effectAllowed = shiftDragEffects[source.kind];
-    event.dataTransfer.setData(shiftDragType, source.kind);
-    setDragSource(source);
-  }
-
-  function canDrop(event: DragEvent<HTMLTableCellElement>, key: string) {
-    return !pending && dragSource && event.dataTransfer.types.includes(shiftDragType) &&
-      (dragSource.kind === "template" || dragSource.key !== key);
-  }
-
-  function hoverDropTarget(event: DragEvent<HTMLTableCellElement>, key: string) {
-    if (!dragSource || !canDrop(event, key)) return;
-    event.preventDefault();
-    event.dataTransfer.dropEffect = shiftDragEffects[dragSource.kind];
-    setDropTarget(key);
-  }
-
-  function leaveDropTarget(event: DragEvent<HTMLTableCellElement>, key: string) {
-    if (event.relatedTarget instanceof Node && event.currentTarget.contains(event.relatedTarget)) return;
-    setDropTarget((current) => current === key ? null : current);
-  }
-
   function toggleCell(key: string) {
     setSelected((current) => current.includes(key) ? current.filter((value) => value !== key) : [...current, key]);
     setFeedback("");
   }
 
-  function dropShift(event: DragEvent<HTMLTableCellElement>, key: string) {
-    if (!dragSource || !canDrop(event, key)) return;
-    event.preventDefault();
-    finishDrag();
-    if (dragSource.kind === "template") {
-      const template = templates.find(({ id }) => id === dragSource.id);
+  function dropShift(dragged: DragSource, key: string) {
+    if (pending) return;
+    if (dragged.kind === "template") {
+      const template = templates.find(({ id }) => id === dragged.id);
       if (template) applyShift([key], template);
       return;
     }
 
-    const source = dragSource.key;
+    const source = dragged.key;
     if (!shifts[source]) return;
     updateShifts({ [key]: shifts[source], [source]: shifts[key] ?? null });
   }
@@ -336,7 +299,7 @@ export function ScheduleEditor({ initial, today }: { initial: SchedulePageData; 
         ))}
       </div>
 
-      <div className={styles.workspace}>
+      <div className={styles.workspace} onPointerDown={onPointerDown} onClickCapture={onClickCapture}>
         <section aria-label="Календарь смен" data-inactive={panel !== "calendar" || undefined} className={styles.calendar}>
           {selected.length > 0 ? (
             <ScheduleSelectionActions
@@ -363,8 +326,6 @@ export function ScheduleEditor({ initial, today }: { initial: SchedulePageData; 
             selected={selected} draggedCell={dragSource?.kind === "cell" ? dragSource.key : undefined} dropTarget={dropTarget}
             onDate={setAssignmentDate} onSelect={toggleCell}
             onEdit={(key, title, shift) => setDialog({ kind: "shift", keys: [key], title, value: shift })}
-            onDragStart={(event, key) => startDrag(event, { kind: "cell", key })}
-            onDragEnd={finishDrag} onDragOver={hoverDropTarget} onDragLeave={leaveDropTarget} onDrop={dropShift}
           />
           <SchedulePagination
             pagination={roster.pagination} error={rosterError} loading={!!rosterRequest} pending={pending}
@@ -378,9 +339,9 @@ export function ScheduleEditor({ initial, today }: { initial: SchedulePageData; 
           hasSelection={selected.length > 0} feedback={feedback}
           onEdit={(template) => setDialog({ kind: "template", value: template })}
           onApply={(shift) => applyShift(selected, shift)} onFeedback={setFeedback}
-          onDragStart={(event, id) => startDrag(event, { kind: "template", id })} onDragEnd={finishDrag}
         />
       </div>
+      <div ref={preview} className={styles.dragPreview} aria-hidden="true" inert hidden />
 
       {dialog && <ShiftDialog
         title={dialog.kind === "shift" ? dialog.title : dialog.value ? "Редактирование шаблона" : "Новый шаблон"}

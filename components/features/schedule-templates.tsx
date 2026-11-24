@@ -1,4 +1,4 @@
-import { useState, type DragEvent, type FormEvent } from "react";
+import { useState, type FormEvent } from "react";
 import styles from "./schedule-templates.module.css";
 import { duration, shiftSchema, type Shift, type Template } from "@/lib/schedule";
 import { Icon } from "./icon";
@@ -26,7 +26,7 @@ function ShiftTimeField({ name, label, value, onChange }: {
 
 export function ScheduleTemplates({
   visible, templates, pending, hasSelection, feedback,
-  onEdit, onApply, onFeedback, onDragStart, onDragEnd,
+  onEdit, onApply, onFeedback,
 }: {
   visible: boolean;
   templates: Template[];
@@ -36,8 +36,6 @@ export function ScheduleTemplates({
   onEdit: (template?: Template) => void;
   onApply: (shift: Shift) => void;
   onFeedback: (message: string) => void;
-  onDragStart: (event: DragEvent<HTMLButtonElement>, id: string) => void;
-  onDragEnd: () => void;
 }) {
   const [start, setStart] = useState("09:00");
   const [end, setEnd] = useState("17:00");
@@ -72,9 +70,7 @@ export function ScheduleTemplates({
         {templates.map((template, index) => (
           <div key={template.id} data-color={template.color} className={styles.card}>
             <button
-              type="button" disabled={pending} draggable={!pending} title={templateHint}
-              onDragStart={(event) => onDragStart(event, template.id)}
-              onDragEnd={onDragEnd}
+              type="button" disabled={pending} data-template-source={template.id} title={templateHint}
               onClick={() => applyTemplate(template)}
               className={styles.template}
             >

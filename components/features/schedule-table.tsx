@@ -1,4 +1,4 @@
-import type { DragEvent, Ref } from "react";
+import type { Ref } from "react";
 import clsx from "clsx";
 import { dateKey, duration, shiftKey, type Employee, type Shift, type Workspace } from "@/lib/schedule";
 import { formatFullDate, formatWeekday, type ScheduleView } from "@/lib/schedule-calendar";
@@ -12,7 +12,6 @@ const monthColumnWidth = 64;
 export function ScheduleTable({
   gridRef, view, days, today, employees, shifts, coverage, filtered, loading, pending,
   selected, draggedCell, dropTarget, onDate, onSelect, onEdit,
-  onDragStart, onDragEnd, onDragOver, onDragLeave, onDrop,
 }: {
   gridRef: Ref<HTMLDivElement>;
   view: ScheduleView;
@@ -30,11 +29,6 @@ export function ScheduleTable({
   onDate: (date: string) => void;
   onSelect: (key: string) => void;
   onEdit: (key: string, title: string, shift?: Shift) => void;
-  onDragStart: (event: DragEvent<HTMLButtonElement>, key: string) => void;
-  onDragEnd: () => void;
-  onDragOver: (event: DragEvent<HTMLTableCellElement>, key: string) => void;
-  onDragLeave: (event: DragEvent<HTMLTableCellElement>, key: string) => void;
-  onDrop: (event: DragEvent<HTMLTableCellElement>, key: string) => void;
 }) {
   const compact = view === "month";
   const disabled = pending || loading;
@@ -100,12 +94,9 @@ export function ScheduleTable({
 
                   return (
                     <ScheduleCell
-                      key={key} title={title} shift={shift} compact={compact} disabled={disabled}
+                      key={key} cellKey={key} title={title} shift={shift} compact={compact} disabled={disabled}
                       selected={keys.has(key)} dragging={draggedCell === key} dropTarget={dropTarget === key}
                       onSelect={() => onSelect(key)} onEdit={() => onEdit(key, title, shift)}
-                      onDragStart={(event) => onDragStart(event, key)} onDragEnd={onDragEnd}
-                      onDragOver={(event) => onDragOver(event, key)} onDragLeave={(event) => onDragLeave(event, key)}
-                      onDrop={(event) => onDrop(event, key)}
                     />
                   );
                 })}

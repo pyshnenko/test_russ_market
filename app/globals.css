@@ -35,3 +35,7 @@
   outline: 2px solid #5978ec;
   outline-offset: 2px;
 }
+
+html[data-schedule-dragging], html[data-schedule-dragging] * {
+  cursor: grabbing !important;
+}

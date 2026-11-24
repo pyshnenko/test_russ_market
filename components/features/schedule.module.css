@@ -34,6 +34,18 @@
   gap: 8px;
 }
 
+.dragPreview {
+  position: fixed;
+  z-index: 1500;
+  border-radius: 9px;
+  box-shadow: 0 4px 15px #18233138;
+  opacity: .88;
+  pointer-events: none;
+}
+
+.dragPreview * { pointer-events: none; }
+.dragPreview > button[data-template-source] { background: #eff0f4; }
+
 .calendar {
   display: flex;
   flex-direction: column;

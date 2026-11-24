@@ -34,7 +34,7 @@
   line-height: 20px;
 }
 
-.template:enabled { cursor: grab; }
+.template:enabled { cursor: grab; user-select: none; }
 .template:enabled:hover { background: #e5e8f0; }
 .template:enabled:active { cursor: grabbing; background: #d5daeb; }
 .template:disabled { opacity: 0.5; }
