@@ -34,7 +34,7 @@ else
   exit 1
 fi
 
-node -e '
+readiness_token="$(node -e '
   const [major, minor] = process.versions.node.split(".").map(Number);
   if (major < 22 || (major === 22 && minor < 13)) {
     console.error("Node.js 22.13 or newer is required.");
@@ -47,7 +47,9 @@ node -e '
       process.exit(1);
     }
   }
-' "$env_file"
+  process.stdout.write(require("node:crypto").createHmac("sha256", settings.AUTH_SECRET)
+    .update("schedule-readiness").digest("hex"));
+' "$env_file")"
 
 port=3010
 if [[ -f "$root/shared/port" ]]; then
@@ -116,6 +118,26 @@ start_process() {
 }
 
 wait_until_ready() {
+  local status
+  for _ in {1..8}; do
+    if status="$(printf 'header = "Authorization: Bearer %s"\n' "$readiness_token" |
+      curl --config - --silent --fail --max-time 7 --output /dev/null --write-out '%{http_code}' \
+        "http://127.0.0.1:$port/api/health/ready")" && [[ "$status" == "204" ]]; then
+      return 0
+    fi
+    sleep 1
+  done
+  echo "Database readiness check did not return HTTP 204 (last status: ${status:-000})." >&2
+  return 1
+}
+
+wait_until_rollback_ready() {
+  if [[ -f "$previous/.next/server/app/api/health/ready/route.js" ]]; then
+    wait_until_ready
+    return
+  fi
+
+  echo "Previous release predates the database readiness endpoint. Checking its login page."
   local response
   for _ in {1..20}; do
     if response="$(curl --silent --fail --max-time 2 "http://127.0.0.1:$port/login")" &&
@@ -135,7 +157,7 @@ fi
 
 echo "Release $sha failed its startup check." >&2
 if [[ -n "$previous" && "$previous" != "$release" ]]; then
-  if activate "$previous" && start_process && wait_until_ready; then
+  if activate "$previous" && start_process && wait_until_rollback_ready; then
     echo "Previous release restored." >&2
   else
     echo "Automatic rollback failed. Check PM2 logs for $process_name." >&2

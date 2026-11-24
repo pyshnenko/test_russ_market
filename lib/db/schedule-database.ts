@@ -14,6 +14,11 @@ export type Sql = {
   run(query: string, values?: Value[]): Promise<number>;
 };
 type TransactionMode = "read" | "write";
+const mysqlTimeoutMs = 5000;
+
+class MySqlOperationTimeout extends Error {
+  readonly code = "MYSQL_OPERATION_TIMEOUT";
+}
 
 let sqlite: DatabaseSync | undefined;
 let sqliteQueue = Promise.resolve();
@@ -32,6 +37,22 @@ function databaseKind(url: string) {
 function postgresParameters(query: string) {
   let index = 0;
   return query.replace(/\?/g, () => `$${++index}`);
+}
+
+async function withMySqlTimeout<T>(operation: Promise<T>, onTimeout: (error: MySqlOperationTimeout) => void) {
+  let timer: ReturnType<typeof setTimeout> | undefined;
+  const timeout = new Promise<never>((_, reject) => {
+    timer = setTimeout(() => {
+      const error = new MySqlOperationTimeout("MySQL operation timed out");
+      reject(error);
+      onTimeout(error);
+    }, mysqlTimeoutMs);
+  });
+  try {
+    return await Promise.race([operation, timeout]);
+  } finally {
+    clearTimeout(timer);
+  }
 }
 
 async function initialize(sql: Sql) {
@@ -88,25 +109,41 @@ export async function withScheduleDatabase<T>(work: (sql: Sql) => Promise<T>, mo
   }
 
   if (databaseKind(url) === "mysql") {
-    mysql ??= createPool({ uri: url, connectTimeout: 5000 });
-    const connection = await mysql.getConnection();
+    mysql ??= createPool({ uri: url, connectTimeout: mysqlTimeoutMs });
+    let acquisitionExpired = false;
+    const acquisition = mysql.getConnection().then((connection) => {
+      if (acquisitionExpired) connection.release();
+      return connection;
+    });
+    const connection = await withMySqlTimeout(acquisition, () => { acquisitionExpired = true; });
+    let timeoutError: MySqlOperationTimeout | undefined;
+
+    async function runStatement<T>(statement: () => Promise<T>) {
+      if (timeoutError) throw timeoutError;
+      // This deadline also covers the prepare step of a parameterized statement.
+      return withMySqlTimeout(statement(), (error) => {
+        timeoutError = error;
+        connection.destroy();
+      });
+    }
+
     const sql: Sql = {
       dialect: "mysql",
       async rows<T>(query: string, values: Value[] = []) {
-        const [rows] = await connection.execute<RowDataPacket[]>(query, values);
+        const [rows] = await runStatement(() => connection.execute<RowDataPacket[]>(query, values));
         return rows as T[];
       },
       async run(query, values = []) {
-        const [result] = values.length
-          ? await connection.execute<ResultSetHeader>(query, values)
-          : await connection.query<ResultSetHeader>(query);
+        const [result] = await runStatement(() => values.length
+          ? connection.execute<ResultSetHeader>(query, values)
+          : connection.query<ResultSetHeader>(query));
         return result.affectedRows;
       },
     };
     try {
       return await transaction(sql, mode, work);
     } finally {
-      connection.release();
+      if (!timeoutError) connection.release();
     }
   }
 

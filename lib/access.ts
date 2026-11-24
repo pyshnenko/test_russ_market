@@ -5,12 +5,13 @@ import { z } from "zod";
 import { auth } from "./auth";
 
 const demoCookie = "schedule_workspace";
+export const managerWorkspaceId = "manager";
 export const isDemo = () => !process.env.DATABASE_URL;
 
 export async function workspaceId(create = false) {
   if (!isDemo()) {
     const session = await auth();
-    return session?.user?.email === "manager@schedule.local" ? "manager" : null;
+    return session?.user?.email === "manager@schedule.local" ? managerWorkspaceId : null;
   }
 
   const jar = await cookies();

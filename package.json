@@ -7,7 +7,7 @@
     "build": "next build",
     "start": "next start",
     "lint": "eslint",
-    "test": "tsc -p tsconfig.test.json && node --conditions=react-server --test .test-build/tests/schedule.test.js .test-build/tests/repository.test.js"
+    "test": "tsc -p tsconfig.test.json && node --conditions=react-server --test .test-build/tests/schedule.test.js .test-build/tests/repository.test.js .test-build/tests/mysql-timeout.test.js"
   },
   "dependencies": {
     "@emotion/cache": "11.14.0",
