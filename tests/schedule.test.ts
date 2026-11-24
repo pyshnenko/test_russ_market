@@ -1,7 +1,7 @@
 import assert from "node:assert/strict";
 import { test } from "node:test";
 import {
-  dateKey, defaultEmployees, duration, parseShiftKey, patchCoverage, patchShifts, schedulePatchSchema, shiftKey, shiftSchema, workspaceSchema,
+  changesInPeriod, dateKey, defaultEmployees, duration, parseShiftKey, patchCoverage, patchShifts, schedulePatchSchema, schedulePeriodSchema, shiftKey, shiftSchema, workspaceSchema,
   type Shift,
 } from "../lib/schedule";
 import { getCalendarWeeks, getDays, isSameMonth, monthFocusDate, shiftMonth } from "../lib/schedule-calendar";
@@ -18,6 +18,15 @@ test("calculates regular shifts and shifts through midnight", () => {
   assert.equal(shiftSchema.safeParse(night).success, true);
   assert.equal(shiftSchema.safeParse({ ...morning, end: "07:00" }).success, false);
   assert.equal(shiftSchema.safeParse({ ...morning, end: "24:00" }).success, false);
+});
+
+test("accepts preset and six-digit palette colors", () => {
+  for (const color of ["blue", "#d44356", "#5978EC"]) {
+    assert.equal(shiftSchema.safeParse({ ...morning, color }).success, true);
+  }
+  for (const color of ["red", "#xyz", "#abc", "#d4435680"]) {
+    assert.equal(shiftSchema.safeParse({ ...morning, color }).success, false);
+  }
 });
 
 test("applies shift edits without mutating the original or unrelated dates", () => {
@@ -67,6 +76,25 @@ test("coverage changes for assignments and removals and stays stable for replace
   });
   assert.deepEqual(next, { "2026-11-23": 2, "2026-11-24": 0 });
   assert.deepEqual(saved, { "2026-11-23": 1, "2026-11-24": 1 });
+});
+
+test("viewing a different period does not discard draft coverage changes", () => {
+  const changes = {
+    [first]: { before: morning, after: null },
+    [other]: { before: null, after: night },
+  };
+  const firstDay = { from: "2026-11-23", to: "2026-11-23" };
+  const nextDay = { from: "2026-11-24", to: "2026-11-24" };
+  assert.deepEqual(patchCoverage({}, changesInPeriod(changes, nextDay)), { "2026-11-24": 1 });
+  assert.deepEqual(patchCoverage({ "2026-11-23": 1 }, changesInPeriod(changes, firstDay)), { "2026-11-23": 0 });
+  assert.equal(Object.keys(changes).length, 2);
+});
+
+test("validates inclusive periods of up to 31 calendar days", () => {
+  assert.equal(schedulePeriodSchema.safeParse({ from: "2026-12-01", to: "2026-12-31" }).success, true);
+  assert.equal(schedulePeriodSchema.safeParse({ from: "2026-12-01", to: "2027-01-01" }).success, false);
+  assert.equal(schedulePeriodSchema.safeParse({ from: "2026-12-31", to: "2026-12-01" }).success, false);
+  assert.equal(schedulePeriodSchema.safeParse({ from: "2026-12-01" }).success, false);
 });
 
 test("rejects invalid shift dates and shifts referencing a removed employee", () => {

@@ -4,7 +4,7 @@ import { after, before, test } from "node:test";
 import { setTimeout as delay } from "node:timers/promises";
 import { createConnection, type RowDataPacket } from "mysql2/promise";
 import { closeScheduleDatabase, withScheduleDatabase } from "../lib/db/schedule-database";
-import { loadSchedule, persistSchedule } from "../lib/repository";
+import { loadSchedule, persistSchedule, persistSchedulePatch, readEmployeePage } from "../lib/repository";
 import { schedulePageResponseSchema, shiftKey, type Shift } from "../lib/schedule";
 import { loadSchedulePage, schedulePageSchema } from "../lib/schedule-page";
 
@@ -37,6 +37,7 @@ before(async () => {
 
 const morning: Shift = { name: "Утро", start: "07:00", end: "15:00", color: "blue" };
 const date = "2026-11-23";
+const period = { from: date, to: "2026-11-29" };
 
 test("saves a draft, publishes it, and rejects a stale workspace version", async () => {
   const workspace = randomUUID();
@@ -66,26 +67,37 @@ test("filters and paginates a large roster and counts coverage across pages", as
   }));
   const firstShift = shiftKey(employees[0].id, date);
   const lastShift = shiftKey(employees[1199].id, date);
-  const data = { ...initial.data, employees, shifts: { [firstShift]: morning, [lastShift]: morning } };
+  const before = shiftKey(employees[0].id, "2026-11-22");
+  const lastDay = shiftKey(employees[0].id, period.to);
+  const after = shiftKey(employees[0].id, "2026-11-30");
+  const data = {
+    ...initial.data, employees,
+    shifts: { [firstShift]: morning, [lastShift]: morning, [lastDay]: morning, [before]: morning, [after]: morning },
+  };
   assert.equal((await persistSchedule(workspace, 0, data, false)).updated, true);
 
-  const first = await loadSchedulePage(workspace, { query: "", page: 1 });
+  const first = await loadSchedulePage(workspace, { query: "", page: 1, period });
   assert.equal(first.data.employees.length, 25);
   assert.deepEqual(first.pagination, { page: 1, pageCount: 48, total: 1200, query: "" });
-  assert.deepEqual(first.data.shifts, { [firstShift]: morning });
-  assert.equal(first.coverage[date], 2);
+  assert.deepEqual(first.period, period);
+  assert.deepEqual(first.data.shifts, { [firstShift]: morning, [lastDay]: morning });
+  assert.deepEqual(first.coverage, { [date]: 2, [period.to]: 1 });
 
-  const last = await loadSchedulePage(workspace, { query: "", page: 49 });
+  const last = await loadSchedulePage(workspace, { query: "", page: 49, period });
   assert.equal(last.pagination.page, 48);
   assert.deepEqual(last.data.shifts, { [lastShift]: morning });
 
-  const filtered = await loadSchedulePage(workspace, { query: "1200 СОТРУДНИК", page: 1 });
+  const filtered = await loadSchedulePage(workspace, { query: "1200 СОТРУДНИК", page: 1, period });
   assert.equal(schedulePageResponseSchema.safeParse(filtered).success, true);
   assert.deepEqual(filtered.data.employees, [employees[1199]]);
   assert.deepEqual(filtered.data.shifts, { [lastShift]: morning });
   assert.equal(filtered.coverage[date], 2);
   assert.equal(schedulePageSchema.safeParse({ page: "0" }).success, false);
-  assert.equal((await loadSchedulePage(workspace, { query: "%_", page: 1 })).pagination.total, 0);
+  assert.equal((await loadSchedulePage(workspace, { query: "%_", page: 1, period })).pagination.total, 0);
+  assert.deepEqual(await readEmployeePage(workspace, 49), {
+    version: 1, employees: employees.slice(-25), pagination: last.pagination,
+  });
+  assert.deepEqual((await loadSchedule(workspace)).data.shifts, data.shifts);
 });
 
 test("migrates legacy data on read and keeps older releases compatible", async () => {
@@ -101,7 +113,7 @@ test("migrates legacy data on read and keeps older releases compatible", async (
     );
   });
 
-  const migrated = await loadSchedulePage(id, { query: "", page: 1 });
+  const migrated = await loadSchedulePage(id, { query: "", page: 1, period });
   assert.equal(migrated.version, 4);
   assert.equal(migrated.publishedAt, publishedAt);
   assert.equal(migrated.data.employees.length, 8);
@@ -118,7 +130,7 @@ test("migrates legacy data on read and keeps older releases compatible", async (
     assert.deepEqual(JSON.parse(row.published), oldDraft);
     await sql.run("UPDATE schedule_workspaces SET version = ?, draft = ? WHERE id = ?", [6, JSON.stringify(oldDraft), id]);
   });
-  const replayed = await loadSchedulePage(id, { query: "", page: 1 });
+  const replayed = await loadSchedulePage(id, { query: "", page: 1, period });
   assert.equal(replayed.version, 6);
   assert.deepEqual(replayed.data.shifts, oldDraft.shifts);
 });
@@ -132,6 +144,46 @@ test("rolls back changes when an employee reference is invalid", async () => {
   const invalid = { ...saved, shifts: { [shiftKey(randomUUID(), date)]: morning } };
   await assert.rejects(() => persistSchedule(id, 1, invalid, false));
   assert.deepEqual(await loadSchedule(id), { version: 1, data: saved, publishedAt: null });
+});
+
+test("applies a shift patch and keeps the draft and publication readable by older releases", async () => {
+  const id = randomUUID();
+  const { data: seed } = await loadSchedule(null);
+  const changed = shiftKey("1", date);
+  const removed = shiftKey("2", date);
+  const added = shiftKey("3", date);
+  const untouched = shiftKey("1", "2020-01-01");
+  const revised = { ...morning, end: "16:00", color: "#d44356" };
+  const startingShifts = { [changed]: morning, [removed]: morning, [untouched]: morning };
+  assert.deepEqual(await persistSchedulePatch(id, 0, { changes: startingShifts, templates: seed.templates }, false), {
+    status: "saved", publishedAt: null,
+  });
+
+  const templates = [...seed.templates].reverse().map((template) => ({ ...template, color: revised.color }));
+  const patch = { changes: { [changed]: revised, [removed]: null, [added]: morning }, templates };
+  const publication = await persistSchedulePatch(id, 1, patch, true);
+  assert.equal(publication.status, "saved");
+  if (publication.status !== "saved") throw new Error("Expected to publish the schedule");
+  assert.ok(publication.publishedAt);
+
+  const expected = { ...seed, shifts: { [changed]: revised, [added]: morning, [untouched]: morning }, templates };
+  assert.deepEqual(await loadSchedule(id), { version: 2, data: expected, publishedAt: publication.publishedAt });
+  assert.deepEqual(await persistSchedulePatch(id, 1, patch, false), { status: "conflict" });
+  for (const shift of [morning, null]) {
+    assert.deepEqual(await persistSchedulePatch(id, 2, {
+      changes: { [shiftKey(randomUUID(), date)]: shift, [changed]: null }, templates: [],
+    }, false), { status: "invalid-employee" });
+  }
+  assert.deepEqual(await loadSchedule(id), { version: 2, data: expected, publishedAt: publication.publishedAt });
+
+  await persistSchedulePatch(id, 2, { changes: { [added]: null }, templates }, false);
+  await withScheduleDatabase(async (sql) => {
+    const [row] = await sql.rows<{ draft: string; published: string }>(
+      "SELECT draft, published FROM schedule_workspaces WHERE id = ?", [id],
+    );
+    assert.deepEqual(JSON.parse(row.draft), { ...expected, shifts: { [changed]: revised, [untouched]: morning } });
+    assert.deepEqual(JSON.parse(row.published), expected);
+  });
 });
 
 test("MySQL uses the existing workspace key collation for foreign keys", { skip: !mysqlTest }, async () => {
@@ -165,7 +217,7 @@ test("a page reads the previous committed version while another transaction is w
 
   try {
     await Promise.race([locked, writer]);
-    const read = loadSchedulePage(id, { query: "", page: 1 });
+    const read = loadSchedulePage(id, { query: "", page: 1, period });
     const timedOut = Symbol("read was blocked");
     const page = await Promise.race([read, delay(2500, timedOut, { ref: false })]);
     assert.notEqual(page, timedOut);
@@ -194,7 +246,7 @@ test("saving an edited shift only updates that normalized row", { skip: !!testUr
   });
 
   const edited = { ...saved, shifts: { ...saved.shifts, [key]: { ...morning, end: "16:00" } } };
-  assert.equal((await persistSchedule(id, 1, edited, false)).updated, true);
+  assert.equal((await persistSchedulePatch(id, 1, { changes: { [key]: edited.shifts[key] }, templates: saved.templates }, false)).status, "saved");
   await withScheduleDatabase(async (sql) => {
     assert.deepEqual((await sql.rows<{ operation: string }>("SELECT operation FROM write_audit")).map(({ operation }) => operation), [
       "schedule_shifts_UPDATE",

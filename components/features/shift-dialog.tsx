@@ -3,7 +3,8 @@
 import { useState, type FormEvent } from "react";
 import Dialog from "@mui/material/Dialog";
 import Button from "@mui/material/Button";
-import { colors, shiftSchema, type Shift } from "@/lib/schedule";
+import { shiftSchema, type Shift } from "@/lib/schedule";
+import { ShiftColorField } from "./shift-color-field";
 import styles from "./schedule-dialogs.module.css";
 
 export function ShiftDialog({ title, value, onClose, onSave, onRemove }: {
@@ -34,9 +35,7 @@ export function ShiftDialog({ title, value, onClose, onSave, onRemove }: {
           <label className={styles.label}>Начало<input className={styles.field} type="time" name="start" required defaultValue={value?.start ?? "09:00"} /></label>
           <label className={styles.label}>Конец<input className={styles.field} type="time" name="end" required defaultValue={value?.end ?? "17:00"} /></label>
         </div>
-        <label className={styles.label}>Цвет<select className={styles.field} name="color" defaultValue={value?.color ?? "blue"}>
-          {Object.entries(colors).map(([key, color]) => <option key={key} value={key}>{color.name}</option>)}
-        </select></label>
+        <ShiftColorField initial={value?.color} />
         {error && <p role="alert" className={styles.error}>{error}</p>}
         <div className={styles.actions}>
           {value && <Button type="button" className={styles.deleteButton} onClick={onRemove}>Удалить</Button>}

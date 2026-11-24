@@ -7,6 +7,7 @@ import MenuItem from "@mui/material/MenuItem";
 import clsx from "clsx";
 import type { Template } from "@/lib/schedule";
 import { Icon } from "./icon";
+import { shiftColorStyle } from "./shift-color-style";
 import styles from "./template-menu.module.css";
 
 const Menu = dynamic(() => import("@mui/material/Menu"));
@@ -55,7 +56,7 @@ export function TemplateMenu({ templates, disabled, className, onApply }: {
           <MenuItem key={template.id}
             className={styles.item}
             onClick={() => { setAnchor(null); onApply(template); }}>
-            <span aria-hidden="true" data-color={template.color} className={styles.swatch}>
+            <span aria-hidden="true" data-color={template.color} style={shiftColorStyle(template.color)} className={styles.swatch}>
               <span className={styles.dot} />
             </span>
             <span className={styles.details}>

@@ -16,6 +16,10 @@
 }
 
 .shift[data-tone] { border-color: transparent; border-style: solid; cursor: grab; user-select: none; }
+.shift[data-tone]:where([style]) {
+  background: color-mix(in srgb, var(--shift-color) 22%, white);
+  color: color-mix(in srgb, var(--shift-color) 32%, #191a1e);
+}
 .shift[data-tone]:enabled:active { cursor: grabbing; }
 .shift[data-tone="blue"] { background: #e6edff; color: #245dcc; }
 .shift[data-tone="violet"] { background: #e9ddfe; color: #6935cd; }

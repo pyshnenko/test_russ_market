@@ -1,0 +1,24 @@
+.field { display: grid; gap: 4px; }
+.select { min-height: 44px; border: 1px solid transparent; border-radius: 8px; background: #eff0f4; font: inherit; }
+.select:focus-within { border-color: #5978ec; }
+.selectedValue { display: flex; align-items: center; gap: 10px; padding: 10px 32px 10px 12px; }
+.selectedValue:focus { background: transparent; }
+.code { margin-left: auto; color: #636770; font-size: 12px; font-variant-numeric: tabular-nums; }
+.menu { margin-top: 4px; border: 1px solid #e4e6ed; border-radius: 12px; box-shadow: 0 12px 32px rgb(31 36 55 / 15%); }
+.options { display: grid; gap: 2px; padding: 5px; }
+.option { min-height: 40px; gap: 10px; padding: 6px 10px; border-radius: 7px; font-size: 14px; }
+.option:hover, .option:focus-visible { background: #eff0f4; }
+.option[aria-selected="true"] { background: #e7ecff; }
+.swatch, .paletteIcon { flex: none; width: 20px; height: 20px; border-radius: 6px; }
+.swatch { background: var(--shift-color); box-shadow: inset 0 0 0 1px rgb(25 26 30 / 15%); }
+.paletteIcon { display: grid; place-items: center; background: #eef0ff; color: #3157db; }
+.paletteIcon svg { width: 16px; height: 16px; }
+
+.palette { display: grid; gap: 10px; margin-top: 5px; padding: 10px 12px 12px; border: 1px solid #e4e6ed; border-radius: 10px; }
+.palette legend { padding-inline: 4px; color: #636770; font-size: 12px; }
+.swatches { display: grid; grid-template-columns: repeat(6, minmax(0, 1fr)); gap: 8px; }
+.paletteButton { width: 100%; min-height: 30px; border: 2px solid white; border-radius: 8px; background: var(--shift-color); box-shadow: 0 0 0 1px #e4e6ed; }
+.paletteButton:hover, .paletteButton[aria-pressed="true"] { box-shadow: 0 0 0 2px #3157db; }
+.paletteButton:focus-visible { outline-offset: 3px; }
+.custom { display: flex; align-items: center; gap: 8px; width: fit-content; color: #2047d9; cursor: pointer; }
+.custom input { width: 30px; height: 27px; padding: 2px; border: 1px solid #e4e6ed; border-radius: 6px; cursor: pointer; }

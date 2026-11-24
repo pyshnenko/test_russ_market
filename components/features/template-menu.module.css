@@ -7,6 +7,7 @@
 .item:hover { background: #eff0f4; }
 .item:focus { background: #e7ecff; }
 .swatch { display: grid; flex: none; place-items: center; width: 24px; height: 24px; border-radius: 6px; }
+.swatch:where([style]) { color: var(--shift-color); background: color-mix(in srgb, var(--shift-color) 18%, white); }
 .swatch[data-color="violet"] { color: #5b21b6; background: #ede9fe; }
 .swatch[data-color="blue"] { color: #1e40af; background: #dbeafe; }
 .swatch[data-color="green"] { color: #065f46; background: #d1fae5; }

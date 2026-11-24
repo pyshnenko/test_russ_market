@@ -4,11 +4,14 @@ import { loadSchedulePage, schedulePageSchema } from "@/lib/schedule-page";
 
 export async function GET(request: Request) {
   const params = new URL(request.url).searchParams;
+  const from = params.get("from");
+  const to = params.get("to");
   const input = schedulePageSchema.safeParse({
     query: params.get("query") ?? undefined,
     page: params.get("page") ?? undefined,
+    period: from !== null || to !== null ? { from, to } : undefined,
   });
-  if (!input.success) return Response.json({ error: "Проверьте параметры поиска." }, { status: 400 });
+  if (!input.success) return Response.json({ error: "Проверьте параметры поиска и период графика." }, { status: 400 });
 
   const id = await workspaceId();
   if (!id && !isDemo()) return Response.json({ error: "Сеанс завершён. Войдите снова." }, { status: 401 });

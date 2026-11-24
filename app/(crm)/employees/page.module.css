@@ -8,6 +8,9 @@
 .name { font-weight: 500; }
 .role { margin-top: 4px; color: #636770; font-size: 14px; }
 .empty { padding: 24px; border-radius: 16px; background: white; color: #636770; }
+.pagination { display: flex; flex: none; flex-wrap: wrap; align-items: center; justify-content: center; gap: 12px; padding-block: 4px; color: #636770; font-size: 14px; }
+.pagination a { padding: 6px 10px; border-radius: 6px; background: white; color: #2047d9; }
+.pagination a:hover { background: #e7ecff; }
 
 @media (width >= 640px) {
   .title { font-size: 32px; }

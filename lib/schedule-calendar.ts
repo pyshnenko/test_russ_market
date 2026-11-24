@@ -1,3 +1,5 @@
+import { dateKey, type SchedulePeriod } from "./schedule";
+
 export type ScheduleView = "week" | "month";
 
 const timeZone = "UTC";
@@ -38,6 +40,10 @@ export function getDays(anchor: string, view: ScheduleView) {
   const last = new Date(first);
   last.setUTCMonth(last.getUTCMonth() + 1, 0);
   return Array.from({ length: last.getUTCDate() }, (_, index) => addDays(first, index));
+}
+
+export function periodOf(days: Date[]): SchedulePeriod {
+  return { from: dateKey(days[0]), to: dateKey(days[days.length - 1]) };
 }
 
 export function getCalendarWeeks(anchor: string) {

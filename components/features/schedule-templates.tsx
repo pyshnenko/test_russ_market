@@ -2,6 +2,7 @@ import { useState, type FormEvent } from "react";
 import styles from "./schedule-templates.module.css";
 import { duration, shiftSchema, type Shift, type Template } from "@/lib/schedule";
 import { Icon } from "./icon";
+import { shiftColorStyle } from "./shift-color-style";
 import { ScheduleButton, ScheduleIconButton } from "./schedule-buttons";
 
 const hours = new Intl.NumberFormat("ru", { maximumFractionDigits: 2 });
@@ -68,7 +69,7 @@ export function ScheduleTemplates({
       </div>
       <div className={styles.templates}>
         {templates.map((template, index) => (
-          <div key={template.id} data-color={template.color} className={styles.card}>
+          <div key={template.id} data-color={template.color} style={shiftColorStyle(template.color)} className={styles.card}>
             <button
               type="button" disabled={pending} data-template-source={template.id} title={templateHint}
               onClick={() => applyTemplate(template)}

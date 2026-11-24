@@ -1,19 +1,22 @@
 import "server-only";
 import type { Sql, Value } from "./schedule-database";
-import { parseShiftKey, type Shift, type Workspace } from "../schedule";
+import { parseShiftKey, type Shift, type ShiftPatch, type Template, type Workspace } from "../schedule";
 
 type OrderedTable = "schedule_employees" | "schedule_templates";
 
 const employeeFields = ["name", "name_search", "job_title", "avatar", "sort_order"];
 const templateFields = ["name", "start_time", "end_time", "color", "sort_order"];
+const shiftFields = ["name", "start_time", "end_time", "color"];
+const insertShifts = "INSERT INTO schedule_shifts (workspace_id, employee_id, shift_date, name, start_time, end_time, color)";
+const writeBatchSize = 100;
 
-async function insertRows(sql: Sql, statement: string, rows: Value[][]) {
+async function insertRows(sql: Sql, statement: string, rows: Value[][], suffix = "") {
   const width = rows[0]?.length;
   if (!width) return;
   const tuple = `(${Array.from({ length: width }, () => "?").join(", ")})`;
-  for (let offset = 0; offset < rows.length; offset += 100) {
-    const batch = rows.slice(offset, offset + 100);
-    await sql.run(`${statement} VALUES ${batch.map(() => tuple).join(", ")}`, batch.flat());
+  for (let offset = 0; offset < rows.length; offset += writeBatchSize) {
+    const batch = rows.slice(offset, offset + writeBatchSize);
+    await sql.run(`${statement} VALUES ${batch.map(() => tuple).join(", ")}${suffix}`, batch.flat());
   }
 }
 
@@ -89,11 +92,39 @@ async function syncShifts(sql: Sql, workspace: string, previous: Workspace["shif
     }
   }
 
-  await insertRows(sql, "INSERT INTO schedule_shifts (workspace_id, employee_id, shift_date, name, start_time, end_time, color)", additions);
+  await insertRows(sql, insertShifts, additions);
+}
+
+export async function applyShiftPatch(sql: Sql, id: string, changes: ShiftPatch) {
+  const upserts: Value[][] = [];
+  const removals: Value[][] = [];
+  for (const [key, shift] of Object.entries(changes)) {
+    const cell = parseShiftKey(key);
+    if (!cell) throw new Error("Malformed shift key");
+    const coordinates = [cell.employeeId, cell.date];
+    if (shift) upserts.push([id, ...coordinates, ...shiftValues(shift)]);
+    else removals.push(coordinates);
+  }
+
+  for (let offset = 0; offset < removals.length; offset += writeBatchSize) {
+    const batch = removals.slice(offset, offset + writeBatchSize);
+    const matches = batch.map(() => "(employee_id = ? AND shift_date = ?)").join(" OR ");
+    await sql.run(`DELETE FROM schedule_shifts WHERE workspace_id = ? AND (${matches})`, [id, ...batch.flat()]);
+  }
+
+  const mysql = sql.dialect === "mysql";
+  const incoming = mysql ? "incoming" : "excluded";
+  const fields = shiftFields.map((field) => `${field} = ${incoming}.${field}`).join(", ");
+  const conflict = mysql ? "AS incoming ON DUPLICATE KEY UPDATE" : "ON CONFLICT (workspace_id, employee_id, shift_date) DO UPDATE SET";
+  await insertRows(sql, insertShifts, upserts, ` ${conflict} ${fields}`);
+}
+
+export async function syncTemplates(sql: Sql, id: string, previous: Template[], next: Template[]) {
+  await syncOrderedRows(sql, id, "schedule_templates", templateFields, templateRows(previous), templateRows(next));
 }
 
 export async function syncNormalizedRows(sql: Sql, id: string, next: Workspace, previous?: Workspace) {
   await syncOrderedRows(sql, id, "schedule_employees", employeeFields, employeeRows(previous?.employees ?? []), employeeRows(next.employees));
-  await syncOrderedRows(sql, id, "schedule_templates", templateFields, templateRows(previous?.templates ?? []), templateRows(next.templates));
+  await syncTemplates(sql, id, previous?.templates ?? [], next.templates);
   await syncShifts(sql, id, previous?.shifts ?? {}, next.shifts);
 }

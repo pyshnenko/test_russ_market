@@ -6,8 +6,8 @@ import dynamic from "next/dynamic";
 import Alert from "@mui/material/Alert";
 import Snackbar from "@mui/material/Snackbar";
 import { saveSchedule, type SaveResult } from "@/app/actions";
-import { dateKey, parseShiftKey, patchCoverage, patchShifts, shiftKey, type SchedulePageData, type Shift, type ShiftChanges, type ShiftPatch, type Template } from "@/lib/schedule";
-import { addDays, formatFullDate, formatMonthYear, formatShortDate, getDays, monthFocusDate, shiftMonth, type ScheduleView } from "@/lib/schedule-calendar";
+import { changesInPeriod, dateKey, parseShiftKey, patchCoverage, patchShifts, shiftKey, type SchedulePageData, type Shift, type ShiftChanges, type ShiftPatch, type Template } from "@/lib/schedule";
+import { addDays, formatFullDate, formatMonthYear, formatShortDate, getDays, monthFocusDate, periodOf, shiftMonth, type ScheduleView } from "@/lib/schedule-calendar";
 import { ScheduleButton } from "./schedule-buttons";
 import { ScheduleTable } from "./schedule-table";
 import { ScheduleTemplates } from "./schedule-templates";
@@ -65,18 +65,25 @@ export function ScheduleEditor({ initial, today }: { initial: SchedulePageData; 
   const [edited, setEdited] = useState(0);
   const [notice, setNotice] = useState<SaveNotice | null>(null);
   const grid = useRef<HTMLDivElement>(null);
-  const days = getDays(anchor, view);
+  const days = useMemo(() => getDays(anchor, view), [anchor, view]);
+  const { from, to } = periodOf(days);
+  const periodReady = from === roster.period.from && to === roster.period.to;
   const { employees, shifts: savedShifts } = roster.data;
   const patch = useMemo<ShiftPatch>(() => Object.fromEntries(Object.entries(changes).map(([key, { after }]) => [key, after])), [changes]);
+  const formPayload = useMemo(
+    () => JSON.stringify({ data: { changes: patch, templates }, version: roster.version, edited }),
+    [patch, templates, roster.version, edited],
+  );
+  const periodChanges = useMemo(() => changesInPeriod(changes, roster.period), [changes, roster.period]);
   const shifts = useMemo(() => {
     const ids = new Set(employees.map(({ id }) => id));
-    const visibleChanges = Object.entries(patch).filter(([key]) => {
+    const visibleChanges = Object.entries(periodChanges).filter(([key]) => {
       const cell = parseShiftKey(key);
       return cell !== null && ids.has(cell.employeeId);
     });
-    return patchShifts(savedShifts, Object.fromEntries(visibleChanges));
-  }, [employees, patch, savedShifts]);
-  const coverageCounts = useMemo(() => patchCoverage(roster.coverage, changes), [roster.coverage, changes]);
+    return patchShifts(savedShifts, Object.fromEntries(visibleChanges.map(([key, { after }]) => [key, after])));
+  }, [employees, periodChanges, savedShifts]);
+  const coverageCounts = useMemo(() => patchCoverage(roster.coverage, periodChanges), [roster.coverage, periodChanges]);
   const [formState, save, pending] = useActionState(async (previous: SaveResult, form: FormData) => {
     const result = await saveSchedule(previous, form);
     const version = result.version;
@@ -99,7 +106,7 @@ export function ScheduleEditor({ initial, today }: { initial: SchedulePageData; 
   }, {
     version: initial.version, publishedAt: initial.publishedAt,
   } satisfies SaveResult);
-  const { dragSource, dropTarget, preview, onPointerDown, onClickCapture } = useScheduleDrag(grid, pending || !!rosterRequest, dropShift);
+  const { dragSource, dropTarget, preview, onPointerDown, onClickCapture } = useScheduleDrag(grid, pending || !!rosterRequest || !periodReady, dropShift);
   const dirty = edited !== (formState.savedEdit ?? 0);
 
   function closeNotice(id: number) {
@@ -113,7 +120,7 @@ export function ScheduleEditor({ initial, today }: { initial: SchedulePageData; 
   useEffect(() => {
     if (!rosterRequest) return;
     const controller = new AbortController();
-    const params = new URLSearchParams({ query: rosterRequest.query, page: String(rosterRequest.page) });
+    const params = new URLSearchParams({ query: rosterRequest.query, page: String(rosterRequest.page), from, to });
     const timer = window.setTimeout(async () => {
       try {
         const response = await fetch(`/api/schedule/employees?${params}`, { signal: controller.signal });
@@ -129,7 +136,9 @@ export function ScheduleEditor({ initial, today }: { initial: SchedulePageData; 
         }
         setRoster(result);
         setSelected([]);
-        grid.current?.scrollTo({ top: 0 });
+        if (result.pagination.page !== roster.pagination.page || result.pagination.query !== roster.pagination.query) {
+          grid.current?.scrollTo({ top: 0 });
+        }
       } catch (error) {
         if (!controller.signal.aborted) setRosterError(error instanceof TypeError ? "Не удалось загрузить сотрудников. Проверьте подключение." : error instanceof Error ? error.message : "Не удалось загрузить сотрудников.");
       } finally {
@@ -140,7 +149,7 @@ export function ScheduleEditor({ initial, today }: { initial: SchedulePageData; 
       window.clearTimeout(timer);
       controller.abort();
     };
-  }, [dirty, rosterRequest, roster.version]);
+  }, [dirty, from, to, rosterRequest, roster.version, roster.pagination.page, roster.pagination.query]);
 
   function requestRoster(query: string, page: number, delay = 0) {
     setRosterError("");
@@ -151,7 +160,6 @@ export function ScheduleEditor({ initial, today }: { initial: SchedulePageData; 
   function updateSearch(value: string) {
     setQuery(value);
     const term = value.trim();
-    if (!term && roster.version === initial.version) setRoster(initial);
     requestRoster(term, 1, term ? 250 : 0);
   }
 
@@ -173,10 +181,14 @@ export function ScheduleEditor({ initial, today }: { initial: SchedulePageData; 
     updateShifts(Object.fromEntries(keys.map((key) => [key, { name, start, end, color }])));
   }, [pending, updateShifts]);
 
-  function toggleCell(key: string) {
+  const toggleCell = useCallback((key: string) => {
     setSelected((current) => current.includes(key) ? current.filter((value) => value !== key) : [...current, key]);
     setFeedback("");
-  }
+  }, []);
+
+  const editCell = useCallback((key: string, title: string, shift?: Shift) => {
+    setDialog({ kind: "shift", keys: [key], title, value: shift });
+  }, []);
 
   function dropShift(dragged: DragSource, key: string) {
     if (pending) return;
@@ -216,19 +228,24 @@ export function ScheduleEditor({ initial, today }: { initial: SchedulePageData; 
   }
 
   function changeView(next: ScheduleView) {
-    if (view === next) return;
-    if (next === "month") {
-      setAnchor(monthFocusDate(anchor, days.map(dateKey), (date) =>
-        employees.some(({ id }) => Boolean(shifts[shiftKey(id, date)])),
-      ));
-    }
-    setView(next);
-    setSelected([]);
+    if (view === next || pending) return;
+    const date = next === "month" && periodReady
+      ? monthFocusDate(anchor, days.map(dateKey), (day) => employees.some(({ id }) => Boolean(shifts[shiftKey(id, day)])))
+      : anchor;
+    selectPeriod(date, next);
   }
 
-  function selectPeriod(date: string) {
-    if (anchor === date) scrollToPeriod(grid.current, view, date);
+  function selectPeriod(date: string, nextView = view) {
+    if (pending) return;
+    const next = periodOf(getDays(date, nextView));
+    if (from !== next.from || to !== next.to) {
+      const term = query.trim();
+      const page = rosterRequest?.page ?? (roster.pagination.query === term ? roster.pagination.page : 1);
+      requestRoster(term, page);
+    }
+    if (anchor === date && view === nextView) scrollToPeriod(grid.current, view, date);
     setAnchor(date);
+    setView(nextView);
     setSelected([]);
   }
 
@@ -269,7 +286,7 @@ export function ScheduleEditor({ initial, today }: { initial: SchedulePageData; 
       <header className={styles.header}>
         <h1 className={styles.heading}>График</h1>
         <form action={save}>
-          <input type="hidden" name="payload" value={JSON.stringify({ data: { changes: patch, templates }, version: roster.version, edited })} />
+          <input type="hidden" name="payload" value={formPayload} />
           <SaveButtons rosterPending={!!rosterRequest} />
         </form>
       </header>
@@ -323,14 +340,15 @@ export function ScheduleEditor({ initial, today }: { initial: SchedulePageData; 
             gridRef={grid} view={view} days={days} today={today}
             employees={employees} shifts={shifts} coverage={coverageCounts}
             filtered={!!roster.pagination.query} loading={!!rosterRequest} pending={pending}
+            periodMessage={periodReady ? undefined : rosterError ? "Смены за выбранный период не загружены." : "Загружаем смены…"}
             selected={selected} draggedCell={dragSource?.kind === "cell" ? dragSource.key : undefined} dropTarget={dropTarget}
             onDate={setAssignmentDate} onSelect={toggleCell}
-            onEdit={(key, title, shift) => setDialog({ kind: "shift", keys: [key], title, value: shift })}
+            onEdit={editCell}
           />
           <SchedulePagination
             pagination={roster.pagination} error={rosterError} loading={!!rosterRequest} pending={pending}
             onPage={(page) => requestRoster(roster.pagination.query, page)}
-            onRetry={() => requestRoster(query.trim(), 1)}
+            onRetry={() => requestRoster(query.trim(), roster.pagination.query === query.trim() ? roster.pagination.page : 1)}
           />
         </section>
 

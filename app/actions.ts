@@ -3,8 +3,8 @@
 import { z } from "zod";
 import { workspaceId } from "@/lib/access";
 import { getDatabaseErrorCode, isDatabaseUnavailable } from "@/lib/database-errors";
-import { loadSchedule, persistSchedule } from "@/lib/repository";
-import { parseShiftKey, patchShifts, schedulePatchSchema, workspaceSchema } from "@/lib/schedule";
+import { persistSchedulePatch } from "@/lib/repository";
+import { schedulePatchSchema } from "@/lib/schedule";
 
 const inputSchema = z.object({
   version: z.number().int().min(0).max(2_000_000_000),
@@ -44,24 +44,11 @@ export async function saveSchedule(previous: SaveResult, form: FormData): Promis
   const publish = intent.data === "publish";
   const conflict = "График изменён в другой вкладке. Обновите страницу перед повторным сохранением.";
   try {
-    const current = await loadSchedule(id);
-    if (current.version !== version) return fail(conflict);
-    const employeeIds = new Set(current.data.employees.map(({ id }) => id));
-    if (Object.keys(data.changes).some((key) => {
-      const cell = parseShiftKey(key);
-      return !cell || !employeeIds.has(cell.employeeId);
-    })) {
-      return fail("Проверьте список сотрудников и назначенные смены.");
+    const result = await persistSchedulePatch(id, version, data, publish);
+    if (result.status !== "saved") {
+      return fail(result.status === "conflict" ? conflict : "Проверьте список сотрудников и назначенные смены.");
     }
-    const workspace = workspaceSchema.safeParse({
-      employees: current.data.employees,
-      shifts: patchShifts(current.data.shifts, data.changes),
-      templates: data.templates,
-    });
-    if (!workspace.success) return fail("Проверьте список сотрудников и назначенные смены.");
-    const { updated, publishedAt } = await persistSchedule(id, version, workspace.data, publish);
-    if (!updated) return fail(conflict);
-    return { version: version + 1, savedEdit: edited, published: publish, publishedAt: publishedAt ?? previous.publishedAt };
+    return { version: version + 1, savedEdit: edited, published: publish, publishedAt: result.publishedAt ?? previous.publishedAt };
   } catch (error) {
     if (isDatabaseUnavailable(error)) {
       console.warn("Schedule database unavailable", getDatabaseErrorCode(error));

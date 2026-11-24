@@ -23,18 +23,22 @@ export const defaultEmployees: Employee[] = [
   { id: "8", name: "Гаврилов Егор", role: "агент" },
 ].map((employee) => ({ ...employee, avatar: `/employees/${employee.id}.png` }));
 export const colors = {
-  violet: { name: "Фиолетовый" },
-  blue: { name: "Синий" },
-  green: { name: "Зелёный" },
-  amber: { name: "Янтарный" },
+  violet: { name: "Фиолетовый", hex: "#8b5cf6" },
+  blue: { name: "Синий", hex: "#5978ec" },
+  green: { name: "Зелёный", hex: "#14a69c" },
+  amber: { name: "Янтарный", hex: "#e9a23b" },
 };
+export type PresetShiftColor = keyof typeof colors;
+export const hexShiftColor = /^#[0-9a-fA-F]{6}$/;
 
 const time = z.string().regex(/^([01]\d|2[0-3]):[0-5]\d$/, "Укажите время в формате ЧЧ:ММ");
 const shiftFields = z.object({
   name: z.string().trim().min(1, "Введите название смены").max(40, "Не более 40 символов"),
   start: time,
   end: time,
-  color: z.enum(["violet", "blue", "green", "amber"]),
+  color: z.union([z.enum(["violet", "blue", "green", "amber"]), z.string().regex(hexShiftColor)], {
+    error: "Выберите цвет смены.",
+  }),
 });
 
 function differentTimes(shift: { start: string; end: string }) {
@@ -44,6 +48,10 @@ function differentTimes(shift: { start: string; end: string }) {
 export const shiftSchema = shiftFields.refine(differentTimes, "Время начала и конца должно различаться");
 export const templateSchema = shiftFields.extend({ id: z.uuid() }).refine(differentTimes);
 const dateSchema = z.iso.date();
+export const schedulePeriodSchema = z.object({ from: dateSchema, to: dateSchema }).refine(({ from, to }) =>
+  from <= to && Date.parse(to) - Date.parse(from) < 31 * 86_400_000
+);
+export type SchedulePeriod = z.infer<typeof schedulePeriodSchema>;
 const shiftKeySeparator = "/";
 
 export function shiftKey(employeeId: string, date: string) {
@@ -84,6 +92,7 @@ export const schedulePageSize = 25;
 export const schedulePageResponseSchema = z.object({
   version: z.number().int().nonnegative(),
   publishedAt: z.iso.datetime().nullable(),
+  period: schedulePeriodSchema,
   data: scheduleDataSchema.extend({ employees: z.array(employeeSchema).max(schedulePageSize) }),
   coverage: z.record(dateSchema, z.number().int().nonnegative()),
   pagination: z.object({
@@ -113,6 +122,13 @@ export function patchCoverage(coverage: Record<string, number>, changes: ShiftCh
     next[date] = (next[date] ?? 0) + Number(!!after) - Number(!!before);
   }
   return next;
+}
+
+export function changesInPeriod(changes: ShiftChanges, { from, to }: SchedulePeriod): ShiftChanges {
+  return Object.fromEntries(Object.entries(changes).filter(([key]) => {
+    const cell = parseShiftKey(key);
+    return cell && cell.date >= from && cell.date <= to;
+  }));
 }
 
 export function dateKey(date: Date) {

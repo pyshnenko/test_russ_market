@@ -16,6 +16,7 @@
 .addButton svg { width: 16px; height: 16px; }
 .templates { display: grid; align-content: start; min-height: 48px; gap: 4px; overflow-y: auto; overscroll-behavior: contain; }
 .card { position: relative; border-radius: 9px; border-left: 3px solid; background: #eff0f4; }
+.card:where([style]) { border-color: var(--shift-color); }
 .card[data-color="blue"] { border-color: #b6c6ff; }
 .card[data-color="violet"] { border-color: #d3acff; }
 .card[data-color="green"] { border-color: #a4eadf; }
