@@ -74,6 +74,7 @@ async function ensureNormalized(sql: Sql, id: string, version: number) {
   const marker = await readMarker(sql, id);
   if (marker?.source_version === version) return;
 
+  // A legacy writer can advance the workspace version without updating the normalized tables.
   await writeNormalized(sql, id, version, await readLegacyDraft(sql, id), marker?.source_version);
 }
 

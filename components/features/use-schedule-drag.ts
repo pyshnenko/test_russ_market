@@ -119,6 +119,7 @@ export function useScheduleDrag(
         viewport?.addEventListener("scroll", highlight);
         frame = window.requestAnimationFrame(scrollGrid);
       }
+      // Move the preview directly so pointer events that stay over one cell do not render the calendar.
       layer.style.transform = `translate3d(${x}px, ${y}px, 0)`;
       highlight();
     }

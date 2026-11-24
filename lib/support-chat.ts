@@ -25,6 +25,7 @@ type SupportState = {
   keepUntil: number;
 };
 
+// The action and polling route share conversations and the relay's single connection within this process.
 const shared = globalThis as typeof globalThis & { scheduleSupport?: SupportState };
 const state: SupportState = shared.scheduleSupport ??= { chats: new Map(), keepUntil: 0 };
 

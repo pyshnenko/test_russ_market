@@ -69,6 +69,7 @@ export function ScheduleEditor({ initial, today }: { initial: SchedulePageData; 
   const { from, to } = periodOf(days);
   const periodReady = from === roster.period.from && to === roster.period.to;
   const { employees, shifts: savedShifts } = roster.data;
+  // Save edits from every period and employee page. Only the loaded period contributes to this snapshot's coverage.
   const patch = useMemo<ShiftPatch>(() => Object.fromEntries(Object.entries(changes).map(([key, { after }]) => [key, after])), [changes]);
   const formPayload = useMemo(
     () => JSON.stringify({ data: { changes: patch, templates }, version: roster.version, edited }),
@@ -167,6 +168,7 @@ export function ScheduleEditor({ initial, today }: { initial: SchedulePageData; 
     setChanges((current) => {
       const next = { ...current };
       for (const [key, after] of Object.entries(updates)) {
+        // Coverage compares the latest edit with the saved shift even after several edits to this cell.
         next[key] = { before: current[key] ? current[key].before : savedShifts[key] ?? null, after };
       }
       return next;

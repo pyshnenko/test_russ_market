@@ -24,6 +24,7 @@ export function ShiftColorField({ initial = "blue" }: { initial?: string }) {
   const labelId = useId();
   const [choice, setChoice] = useState<PresetShiftColor | "custom">(isPreset(initial) ? initial : "custom");
   const [customColor, setCustomColor] = useState(isPreset(initial) ? colors[initial].hex : initial);
+  // The menu uses "custom" only as a choice. The form contract accepts a preset or a HEX value.
   const color = choice === "custom" ? customColor : choice;
 
   return (

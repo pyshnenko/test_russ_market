@@ -27,6 +27,7 @@ export async function initializeScheduleSchema(sql: Sql) {
       published ${document},
       published_at VARCHAR(32)
     )`);
+  // MySQL foreign keys must match the existing parent column even if the database default has changed.
   const workspaceKey = await mysqlKeyCollation(sql, "schedule_workspaces", "id");
   await sql.run(`CREATE TABLE IF NOT EXISTS schedule_normalized_versions (
       workspace_id VARCHAR(36)${workspaceKey} PRIMARY KEY,
