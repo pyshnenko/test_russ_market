@@ -3,7 +3,7 @@
 import { useActionState, useEffect, useRef, useState } from "react";
 import { useFormStatus } from "react-dom";
 import dynamic from "next/dynamic";
-import { mutateEmployee } from "@/app/employees/actions";
+import { mutateEmployee } from "@/app/(crm)/employees/actions";
 import clsx from "clsx";
 import Button from "@mui/material/Button";
 import styles from "./employee-controls.module.css";

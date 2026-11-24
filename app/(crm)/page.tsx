@@ -1,6 +1,5 @@
 import { redirect } from "next/navigation";
 import { ScheduleEditor } from "@/components/features/schedule-editor";
-import { ScheduleShell } from "@/components/features/schedule-shell";
 import { ScheduleUnavailable } from "@/components/features/schedule-unavailable";
 import { isDemo, workspaceId } from "@/lib/access";
 import { getDatabaseErrorCode, isDatabaseUnavailable } from "@/lib/database-errors";
@@ -16,12 +15,8 @@ export default async function SchedulePage() {
     console.warn("Schedule database unavailable", getDatabaseErrorCode(error));
     return null;
   });
-  if (!snapshot) return <ScheduleShell><ScheduleUnavailable /></ScheduleShell>;
+  if (!snapshot) return <ScheduleUnavailable />;
   const today = new Intl.DateTimeFormat("sv-SE", { timeZone: "Europe/Moscow" }).format(new Date());
 
-  return (
-    <ScheduleShell>
-      <ScheduleEditor initial={snapshot} today={today} />
-    </ScheduleShell>
-  );
+  return <ScheduleEditor initial={snapshot} today={today} />;
 }

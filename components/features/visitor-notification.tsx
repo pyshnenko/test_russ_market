@@ -1,7 +1,6 @@
 "use client";
 
-import { startTransition, useEffect, useRef } from "react";
-import { notifyVisitor } from "@/app/visitor-actions";
+import { useEffect, useRef } from "react";
 
 export function VisitorNotification() {
   const reported = useRef(false);
@@ -10,9 +9,7 @@ export function VisitorNotification() {
     if (reported.current) return;
     reported.current = true;
 
-    startTransition(async () => {
-      await notifyVisitor("page-opened").catch(() => undefined);
-    });
+    void fetch("/api/support-chat/visit", { method: "POST", keepalive: true }).catch(() => undefined);
   }, []);
 
   return null;

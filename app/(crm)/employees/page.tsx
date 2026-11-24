@@ -2,7 +2,6 @@ import { redirect } from "next/navigation";
 import styles from "./page.module.css";
 import { EmployeeAvatar } from "@/components/features/employee-avatar";
 import { EmployeeControls } from "@/components/features/employee-controls";
-import { ScheduleShell } from "@/components/features/schedule-shell";
 import { ScheduleUnavailable } from "@/components/features/schedule-unavailable";
 import { isDemo, workspaceId } from "@/lib/access";
 import { getDatabaseErrorCode, isDatabaseUnavailable } from "@/lib/database-errors";
@@ -19,11 +18,11 @@ export default async function EmployeesPage() {
     console.warn("Employee database unavailable", getDatabaseErrorCode(error));
     return null;
   });
-  if (!snapshot) return <ScheduleShell section="employees"><ScheduleUnavailable title="Список сотрудников временно недоступен" /></ScheduleShell>;
+  if (!snapshot) return <ScheduleUnavailable title="Список сотрудников временно недоступен" />;
 
   const { employees } = snapshot.data;
   return (
-    <ScheduleShell section="employees">
+    <>
       <header className={styles.header}>
         <h1 className={styles.title}>Сотрудники</h1>
         <EmployeeControls version={snapshot.version} disabled={employees.length >= maxEmployees} />
@@ -46,6 +45,6 @@ export default async function EmployeesPage() {
           </ul>
         ) : <p className={styles.empty}>Добавьте первого сотрудника, чтобы назначать ему смены.</p>}
       </div>
-    </ScheduleShell>
+    </>
   );
 }

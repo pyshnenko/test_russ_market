@@ -1,11 +1,14 @@
 import "server-only";
 
 import { randomBytes, randomUUID } from "node:crypto";
+import { setTimeout as delay } from "node:timers/promises";
 import type { SupportChatMessage } from "./support-chat-types";
 
 const chatLifetime = 30 * 60_000;
 const maxChats = 100;
 const maxMessages = 100;
+
+class RelayBusyError extends Error {}
 
 type Chat = {
   code: string;
@@ -101,10 +104,13 @@ function connection(): Promise<WebSocket> {
       reject(new Error(`WebSocket error for ${url.host}${detail}`));
       if (state.socket === socket) state.socket = undefined;
     }, { once: true });
-    socket.addEventListener("close", ({ code }) => {
+    socket.addEventListener("close", ({ code, reason }) => {
       clearTimers();
       if (state.socket === socket) state.socket = undefined;
-      reject(new Error(`WebSocket closed with code ${code} for ${url.host}`));
+      const error = code === 1008 && reason === "Client already connected"
+        ? new RelayBusyError(`WebSocket relay already has a client (1008) for ${url.host}`)
+        : new Error(`WebSocket closed with code ${code} for ${url.host}`);
+      reject(error);
     }, { once: true });
   });
 
@@ -120,8 +126,13 @@ async function sendToRelay(text: string, duration: number) {
 }
 
 export async function sendVisitorNotification() {
+  const message = "на странице посетитель!!!";
   try {
-    await sendToRelay("на странице посетитель!!!", 1_000);
+    await sendToRelay(message, 1_000).catch(async (error: unknown) => {
+      if (!(error instanceof RelayBusyError)) throw error;
+      await delay(750);
+      await sendToRelay(message, 1_000);
+    });
   } catch (error) {
     console.warn("Visitor notification failed", error instanceof Error ? error.message : error);
   }
@@ -164,6 +175,7 @@ export async function sendSupportMessage(token: string | undefined, text: string
   } catch (error) {
     if (chat.messages.length === 0) state.chats.delete(chatToken);
     console.warn("Support chat send failed", error instanceof Error ? error.message : error);
-    return { error: "Не удалось отправить сообщение. Попробуйте ещё раз." };
+    return { error: error instanceof RelayBusyError ? "Чат временно занят. Попробуйте позже."
+      : "Не удалось отправить сообщение. Попробуйте ещё раз." };
   }
 }
