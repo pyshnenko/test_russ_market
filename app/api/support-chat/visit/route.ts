@@ -1,6 +1,6 @@
 import { after } from "next/server";
 import { z } from "zod";
-import { sendVisitorNotification } from "@/lib/support-chat";
+import { sendVisitorNotification } from "@/lib/ws/visitor-relay";
 
 const httpOrigin = z.url({ protocol: /^https?$/ });
 

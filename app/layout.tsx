@@ -3,6 +3,7 @@ import localFont from "next/font/local";
 import { SupportChat } from "@/components/features/support-chat";
 import { VisitorNotification } from "@/components/features/visitor-notification";
 import { AppThemeProvider } from "@/components/ui/theme-provider";
+import { isRelayConfigured } from "@/lib/ws/visitor-relay";
 import "./globals.css";
 
 const latin = localFont({
@@ -25,12 +26,13 @@ export const metadata: Metadata = {
 };
 
 export default function RootLayout({ children }: LayoutProps<"/">) {
+  const supportEnabled = isRelayConfigured();
   return (
     <html lang="ru" className={latin.variable + " " + cyrillic.variable}>
       <body>
-        <VisitorNotification />
+        {supportEnabled && <VisitorNotification />}
         <AppThemeProvider>{children}</AppThemeProvider>
-        <SupportChat />
+        {supportEnabled && <SupportChat />}
       </body>
     </html>
   );

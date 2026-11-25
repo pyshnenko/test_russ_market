@@ -1,5 +1,6 @@
 import { after } from "next/server";
-import { readSupportChat, reconnectSupportChat } from "@/lib/support-chat";
+import { readSupportChat } from "@/lib/support-chat";
+import { reconnectRelay } from "@/lib/ws/visitor-relay";
 import { supportChatToken } from "@/lib/support-chat-types";
 
 const headers = { "Cache-Control": "no-store" };
@@ -11,6 +12,6 @@ export function GET(request: Request) {
   const chat = readSupportChat(input.data);
   if (!chat) return new Response(null, { status: 404, headers });
 
-  after(() => reconnectSupportChat(chat.remaining));
+  after(() => reconnectRelay(chat.remaining));
   return Response.json(chat.messages, { headers });
 }

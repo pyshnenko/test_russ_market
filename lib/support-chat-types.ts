@@ -10,4 +10,4 @@ export const supportChatMessages = z.array(z.object({
 }));
 
 export type SupportChatMessage = z.infer<typeof supportChatMessages>[number];
-export type SupportChatActionState = { token?: string; error?: string };
+export type SupportChatActionState = { error?: string };
