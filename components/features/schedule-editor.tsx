@@ -5,6 +5,7 @@ import { useFormStatus } from "react-dom";
 import dynamic from "next/dynamic";
 import Alert from "@mui/material/Alert";
 import Snackbar from "@mui/material/Snackbar";
+import CircularProgress from "@mui/material/CircularProgress";
 import { saveSchedule, type SaveResult } from "@/app/actions";
 import { changesInPeriod, dateKey, parseShiftKey, patchCoverage, patchShifts, shiftKey, type SchedulePageData, type Shift, type ShiftChanges, type ShiftPatch, type Template } from "@/lib/schedule";
 import { addDays, formatFullDate, formatMonthYear, formatShortDate, getDays, monthFocusDate, periodOf, shiftMonth, type ScheduleView } from "@/lib/schedule-calendar";
@@ -56,7 +57,9 @@ export function ScheduleEditor({ initial, today }: { initial: SchedulePageData; 
   const [panel, setPanel] = useState<"calendar" | "templates">("calendar");
   const [anchor, setAnchor] = useState(today);
   const [query, setQuery] = useState("");
-  const [rosterRequest, setRosterRequest] = useState<{ query: string; page: number; delay: number } | null>(null);
+  const [pageSize, setPageSize] = useState(initial.pagination.pageSize);
+  const [rosterRequest, setRosterRequest] = useState<{ query: string; page: number; pageSize: typeof pageSize; delay: number } | null>(null);
+  const [slowRequest, setSlowRequest] = useState<typeof rosterRequest>(null);
   const [rosterError, setRosterError] = useState("");
   const [selected, setSelected] = useState<string[]>([]);
   const [dialog, setDialog] = useState<DialogState | null>(null);
@@ -121,8 +124,10 @@ export function ScheduleEditor({ initial, today }: { initial: SchedulePageData; 
   useEffect(() => {
     if (!rosterRequest) return;
     const controller = new AbortController();
-    const params = new URLSearchParams({ query: rosterRequest.query, page: String(rosterRequest.page), from, to });
+    const params = new URLSearchParams({ query: rosterRequest.query, page: String(rosterRequest.page), pageSize: String(rosterRequest.pageSize), from, to });
+    let indicatorTimer: number | undefined;
     const timer = window.setTimeout(async () => {
+      indicatorTimer = window.setTimeout(() => setSlowRequest(rosterRequest), 500);
       try {
         const response = await fetch(`/api/schedule/employees?${params}`, { signal: controller.signal });
         if (!response.ok) {
@@ -137,31 +142,38 @@ export function ScheduleEditor({ initial, today }: { initial: SchedulePageData; 
         }
         setRoster(result);
         setSelected([]);
-        if (result.pagination.page !== roster.pagination.page || result.pagination.query !== roster.pagination.query) {
+        if (result.pagination.page !== roster.pagination.page || result.pagination.query !== roster.pagination.query || result.pagination.pageSize !== roster.pagination.pageSize) {
           grid.current?.scrollTo({ top: 0 });
         }
       } catch (error) {
         if (!controller.signal.aborted) setRosterError(error instanceof TypeError ? "Не удалось загрузить сотрудников. Проверьте подключение." : error instanceof Error ? error.message : "Не удалось загрузить сотрудников.");
       } finally {
+        window.clearTimeout(indicatorTimer);
         if (!controller.signal.aborted) setRosterRequest((current) => current === rosterRequest ? null : current);
       }
     }, rosterRequest.delay);
     return () => {
       window.clearTimeout(timer);
+      window.clearTimeout(indicatorTimer);
       controller.abort();
+      setSlowRequest((current) => current === rosterRequest ? null : current);
     };
-  }, [dirty, from, to, rosterRequest, roster.version, roster.pagination.page, roster.pagination.query]);
+  }, [dirty, from, to, rosterRequest, roster.version, roster.pagination.page, roster.pagination.pageSize, roster.pagination.query]);
 
-  function requestRoster(query: string, page: number, delay = 0) {
+  function requestRoster(query: string, page: number, delay = 0, size = pageSize) {
     setRosterError("");
     setSelected([]);
-    setRosterRequest({ query, page, delay });
+    setRosterRequest({ query, page, pageSize: size, delay });
   }
 
   function updateSearch(value: string) {
     setQuery(value);
     const term = value.trim();
     requestRoster(term, 1, term ? 250 : 0);
+  }
+
+  function currentPage() {
+    return roster.pagination.query === query.trim() && roster.pagination.pageSize === pageSize ? roster.pagination.page : 1;
   }
 
   const updateShifts = useCallback((updates: ShiftPatch) => {
@@ -242,7 +254,7 @@ export function ScheduleEditor({ initial, today }: { initial: SchedulePageData; 
     const next = periodOf(getDays(date, nextView));
     if (from !== next.from || to !== next.to) {
       const term = query.trim();
-      const page = rosterRequest?.page ?? (roster.pagination.query === term ? roster.pagination.page : 1);
+      const page = rosterRequest?.page ?? currentPage();
       requestRoster(term, page);
     }
     if (anchor === date && view === nextView) scrollToPeriod(grid.current, view, date);
@@ -338,19 +350,32 @@ export function ScheduleEditor({ initial, today }: { initial: SchedulePageData; 
               onSearch={updateSearch} onChangeView={changeView} onMove={move} onSelectPeriod={selectPeriod}
             />
           )}
-          <ScheduleTable
-            gridRef={grid} view={view} days={days} today={today}
-            employees={employees} shifts={shifts} coverage={coverageCounts}
-            filtered={!!roster.pagination.query} loading={!!rosterRequest} pending={pending}
-            periodMessage={periodReady ? undefined : rosterError ? "Смены за выбранный период не загружены." : "Загружаем смены…"}
-            selected={selected} draggedCell={dragSource?.kind === "cell" ? dragSource.key : undefined} dropTarget={dropTarget}
-            onDate={setAssignmentDate} onSelect={toggleCell}
-            onEdit={editCell}
-          />
+          <div className={styles.tableFrame}>
+            <ScheduleTable
+              gridRef={grid} view={view} days={days} today={today}
+              employees={employees} shifts={shifts} coverage={coverageCounts}
+              filtered={!!roster.pagination.query} loading={!!rosterRequest} pending={pending}
+              periodReady={periodReady}
+              periodMessage={!periodReady && rosterError ? "Смены за выбранный период не загружены." : undefined}
+              selected={selected} draggedCell={dragSource?.kind === "cell" ? dragSource.key : undefined} dropTarget={dropTarget}
+              onDate={setAssignmentDate} onSelect={toggleCell}
+              onEdit={editCell}
+            />
+            {rosterRequest && slowRequest === rosterRequest && (
+              <div className={styles.tableLoading}>
+                <div className={styles.loadingStatus} role="status">
+                  <CircularProgress size={22} aria-hidden="true" />
+                  Загружаем график…
+                </div>
+              </div>
+            )}
+          </div>
           <SchedulePagination
             pagination={roster.pagination} error={rosterError} loading={!!rosterRequest} pending={pending}
+            pageSize={pageSize}
+            onPageSize={(size) => { setPageSize(size); requestRoster(query.trim(), 1, 0, size); }}
             onPage={(page) => requestRoster(roster.pagination.query, page)}
-            onRetry={() => requestRoster(query.trim(), roster.pagination.query === query.trim() ? roster.pagination.page : 1)}
+            onRetry={() => requestRoster(query.trim(), currentPage())}
           />
         </section>
 

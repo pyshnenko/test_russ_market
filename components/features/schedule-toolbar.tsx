@@ -3,7 +3,7 @@ import { Badge } from "@/components/ui/badge";
 import ButtonBase from "@mui/material/ButtonBase";
 import InputBase from "@mui/material/InputBase";
 import styles from "./schedule-toolbar.module.css";
-import { parseShiftKey, type SchedulePageData, type Template } from "@/lib/schedule";
+import { parseShiftKey, schedulePageSizes, schedulePageSizeSchema, type SchedulePageData, type SchedulePageSize, type Template } from "@/lib/schedule";
 import type { ScheduleView } from "@/lib/schedule-calendar";
 import { Icon } from "./icon";
 import { ScheduleIconButton } from "./schedule-buttons";
@@ -105,25 +105,38 @@ export function ScheduleToolbar({ query, pending, view, anchor, today, dateLabel
   );
 }
 
-export function SchedulePagination({ pagination, error, loading, pending, onPage, onRetry }: {
+export function SchedulePagination({ pagination, pageSize, error, loading, pending, onPage, onPageSize, onRetry }: {
   pagination: SchedulePageData["pagination"];
+  pageSize: SchedulePageSize;
   error: string;
   loading: boolean;
   pending: boolean;
   onPage: (page: number) => void;
+  onPageSize: (size: SchedulePageSize) => void;
   onRetry: () => void;
 }) {
   const { page, pageCount, total } = pagination;
-  if (pageCount <= 1 && !error && !loading) return null;
+  const navigationDisabled = pending || loading || !!error;
 
   return (
     <div className={styles.pagination}>
-      <span role="status">{loading ? "Загружаем сотрудников…" : error || `Страница ${page} из ${pageCount} · всего ${total}`}</span>
+      <span role="status">{error || `Страница ${page} из ${pageCount} · всего ${total}`}</span>
       {error && <button type="button" onClick={onRetry} className={styles.retry}>Повторить поиск</button>}
-      {pageCount > 1 && <nav aria-label="Страницы сотрудников" className={styles.pageButtons}>
-        <ScheduleIconButton aria-label="Предыдущая страница сотрудников" disabled={pending || loading || page === 1} onClick={() => onPage(page - 1)}><Icon name="left" /></ScheduleIconButton>
-        <ScheduleIconButton aria-label="Следующая страница сотрудников" disabled={pending || loading || page === pageCount} onClick={() => onPage(page + 1)}><Icon name="right" /></ScheduleIconButton>
-      </nav>}
+      <div className={styles.pageControls}>
+        <label className={styles.pageSize}>
+          На странице
+          <select value={pageSize} disabled={pending} onChange={(event) => {
+            const size = schedulePageSizeSchema.safeParse(Number(event.target.value));
+            if (size.success) onPageSize(size.data);
+          }}>
+            {schedulePageSizes.map((size) => <option key={size} value={size}>{size}</option>)}
+          </select>
+        </label>
+        {pageCount > 1 && <nav aria-label="Страницы сотрудников" className={styles.pageButtons}>
+          <ScheduleIconButton aria-label="Предыдущая страница сотрудников" disabled={navigationDisabled || page === 1} onClick={() => onPage(page - 1)}><Icon name="left" /></ScheduleIconButton>
+          <ScheduleIconButton aria-label="Следующая страница сотрудников" disabled={navigationDisabled || page === pageCount} onClick={() => onPage(page + 1)}><Icon name="right" /></ScheduleIconButton>
+        </nav>}
+      </div>
     </div>
   );
 }

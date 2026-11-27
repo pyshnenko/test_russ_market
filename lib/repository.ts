@@ -120,16 +120,19 @@ export async function loadSchedule(id: string | null): Promise<Snapshot> {
   });
 }
 
-type EmployeePageRequest = { query: string; page: number };
+type EmployeePageRequest = { query: string; page: number; pageSize: SchedulePageData["pagination"]["pageSize"] };
 type PageRequest = EmployeePageRequest & { period: SchedulePeriod };
 
-function seedEmployeePage({ query }: EmployeePageRequest) {
+function seedEmployeePage({ query, page: requestedPage, pageSize }: EmployeePageRequest) {
   const words = searchWords(query);
   const employees = defaultEmployees.filter(({ name }) => words.every((word) => name.toLocaleLowerCase("ru").includes(word)));
-  return { employees, pagination: { page: 1, pageCount: 1, total: employees.length, query } };
+  const total = employees.length;
+  const pageCount = Math.max(1, Math.ceil(total / pageSize));
+  const page = Math.min(requestedPage, pageCount);
+  return { employees: employees.slice((page - 1) * pageSize, page * pageSize), pagination: { page, pageCount, pageSize, total, query } };
 }
 
-async function readEmployees(sql: Sql, id: string, { query, page: requestedPage }: EmployeePageRequest) {
+async function readEmployees(sql: Sql, id: string, { query, page: requestedPage, pageSize }: EmployeePageRequest) {
   const words = searchWords(query);
   const filter = "workspace_id = ?" + " AND name_search LIKE ? ESCAPE '!'".repeat(words.length);
   const parameters = [id, ...words.map(likePattern)];
@@ -137,17 +140,17 @@ async function readEmployees(sql: Sql, id: string, { query, page: requestedPage 
     `SELECT COUNT(*) AS total FROM schedule_employees WHERE ${filter}`, parameters,
   );
   const total = Number(count.total);
-  const pageCount = Math.max(1, Math.ceil(total / schedulePageSize));
+  const pageCount = Math.max(1, Math.ceil(total / pageSize));
   const page = Math.min(requestedPage, pageCount);
   const employees = (await sql.rows<EmployeeRow>(
     `SELECT ${employeeColumns} FROM schedule_employees WHERE ${filter} ORDER BY sort_order LIMIT ? OFFSET ?`,
-    [...parameters, schedulePageSize, (page - 1) * schedulePageSize],
+    [...parameters, pageSize, (page - 1) * pageSize],
   )).map(asEmployee);
-  return { employees, pagination: { page, pageCount, total, query } };
+  return { employees, pagination: { page, pageCount, pageSize, total, query } };
 }
 
 export async function readEmployeePage(id: string | null, page: number) {
-  const request = { query: "", page };
+  const request: EmployeePageRequest = { query: "", page, pageSize: schedulePageSize };
   const empty = () => ({ version: 0, ...seedEmployeePage(request) });
   if (!id) return empty();
   return readNormalized(id, empty, async (sql, row) => ({

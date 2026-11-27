@@ -11,7 +11,7 @@ const monthColumnWidth = 64;
 
 export const ScheduleTable = memo(function ScheduleTable({
   gridRef, view, days, today, employees, shifts, coverage, filtered, loading, pending,
-  periodMessage, selected, draggedCell, dropTarget, onDate, onSelect, onEdit,
+  periodReady, periodMessage, selected, draggedCell, dropTarget, onDate, onSelect, onEdit,
 }: {
   gridRef: Ref<HTMLDivElement>;
   view: ScheduleView;
@@ -23,6 +23,7 @@ export const ScheduleTable = memo(function ScheduleTable({
   filtered: boolean;
   loading: boolean;
   pending: boolean;
+  periodReady: boolean;
   periodMessage?: string;
   selected: string[];
   draggedCell?: string;
@@ -32,8 +33,7 @@ export const ScheduleTable = memo(function ScheduleTable({
   onEdit: (key: string, title: string, shift?: Shift) => void;
 }) {
   const compact = view === "month";
-  const periodAvailable = !periodMessage;
-  const disabled = pending || loading || !periodAvailable;
+  const disabled = pending || loading || !periodReady;
   const columns = useMemo(() => days.map((day) => ({
     date: dateKey(day),
     number: day.getUTCDate(),
@@ -41,7 +41,7 @@ export const ScheduleTable = memo(function ScheduleTable({
     label: formatFullDate(day),
   })), [days]);
   const rows = useMemo(() => {
-    if (!periodAvailable) return [];
+    if (!periodReady) return [];
     return employees.map((employee) => {
       let minutes = 0;
       const cells = columns.map(({ date, label }) => {
@@ -52,7 +52,7 @@ export const ScheduleTable = memo(function ScheduleTable({
       });
       return { ...employee, cells, total: hours.format(minutes / 60) };
     });
-  }, [columns, employees, periodAvailable, shifts]);
+  }, [columns, employees, periodReady, shifts]);
   const keys = useMemo(() => new Set(selected), [selected]);
 
   return (
@@ -110,7 +110,7 @@ export const ScheduleTable = memo(function ScheduleTable({
                 ))}
             </tr>
           ))}
-          {(periodMessage || !employees.length) && (
+          {(periodMessage || (periodReady && !employees.length)) && (
             <tr><td colSpan={days.length + 1} className={styles.empty}>
               {periodMessage ?? (filtered ? "Сотрудники не найдены" : "Добавьте сотрудников на главной странице")}
             </td></tr>
@@ -123,7 +123,7 @@ export const ScheduleTable = memo(function ScheduleTable({
             {columns.map(({ date }) => {
               const count = coverage[date] ?? 0;
               return (
-                <td key={date} data-covered={!periodMessage && count > 0 || undefined} className={styles.coverage}>{periodMessage ? "—" : count}</td>
+                <td key={date} data-covered={periodReady && count > 0 || undefined} className={styles.coverage}>{periodReady ? count : "—"}</td>
               );
             })}
           </tr>

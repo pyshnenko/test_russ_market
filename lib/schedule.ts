@@ -89,14 +89,18 @@ export type Snapshot = { version: number; data: Workspace; publishedAt: string |
 export type ShiftPatch = z.infer<typeof schedulePatchSchema>["changes"];
 export type ShiftChanges = Record<string, { before: Shift | null; after: Shift | null }>;
 export const schedulePageSize = 25;
+export const schedulePageSizes = [5, 10, schedulePageSize, 50] as const;
+export const schedulePageSizeSchema = z.literal(schedulePageSizes);
+export type SchedulePageSize = z.infer<typeof schedulePageSizeSchema>;
 export const schedulePageResponseSchema = z.object({
   version: z.number().int().nonnegative(),
   publishedAt: z.iso.datetime().nullable(),
   period: schedulePeriodSchema,
-  data: scheduleDataSchema.extend({ employees: z.array(employeeSchema).max(schedulePageSize) }),
+  data: scheduleDataSchema.extend({ employees: z.array(employeeSchema).max(Math.max(...schedulePageSizes)) }),
   coverage: z.record(dateSchema, z.number().int().nonnegative()),
   pagination: z.object({
     page: z.number().int().positive(),
+    pageSize: schedulePageSizeSchema,
     pageCount: z.number().int().positive(),
     total: z.number().int().nonnegative(),
     query: z.string().max(100),

@@ -78,7 +78,7 @@ test("filters and paginates a large roster and counts coverage across pages", as
 
   const first = await loadSchedulePage(workspace, { query: "", page: 1, period });
   assert.equal(first.data.employees.length, 25);
-  assert.deepEqual(first.pagination, { page: 1, pageCount: 48, total: 1200, query: "" });
+  assert.deepEqual(first.pagination, { page: 1, pageCount: 48, pageSize: 25, total: 1200, query: "" });
   assert.deepEqual(first.period, period);
   assert.deepEqual(first.data.shifts, { [firstShift]: morning, [lastDay]: morning });
   assert.deepEqual(first.coverage, { [date]: 2, [period.to]: 1 });
@@ -86,6 +86,16 @@ test("filters and paginates a large roster and counts coverage across pages", as
   const last = await loadSchedulePage(workspace, { query: "", page: 49, period });
   assert.equal(last.pagination.page, 48);
   assert.deepEqual(last.data.shifts, { [lastShift]: morning });
+  const larger = await loadSchedulePage(workspace, { query: "", page: 2, pageSize: 50, period });
+  assert.deepEqual(larger.pagination, { page: 2, pageCount: 24, pageSize: 50, total: 1200, query: "" });
+  assert.deepEqual(larger.data.employees, employees.slice(50, 100));
+  assert.deepEqual(larger.coverage, first.coverage);
+  assert.equal(schedulePageResponseSchema.safeParse(larger).success, true);
+  const demo = await loadSchedulePage(null, { query: "", page: 2, pageSize: 5, period });
+  assert.equal(demo.data.employees.length, 3);
+  assert.equal(demo.pagination.page, 2);
+  assert.equal(schedulePageSchema.safeParse({ pageSize: "51" }).success, false);
+  assert.equal(schedulePageSchema.parse({ pageSize: "10" }).pageSize, 10);
 
   const filtered = await loadSchedulePage(workspace, { query: "1200 СОТРУДНИК", page: 1, period });
   assert.equal(schedulePageResponseSchema.safeParse(filtered).success, true);

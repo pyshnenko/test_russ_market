@@ -9,6 +9,7 @@ export async function GET(request: Request) {
   const input = schedulePageSchema.safeParse({
     query: params.get("query") ?? undefined,
     page: params.get("page") ?? undefined,
+    pageSize: params.get("pageSize") ?? undefined,
     period: from !== null || to !== null ? { from, to } : undefined,
   });
   if (!input.success) return Response.json({ error: "Проверьте параметры поиска и период графика." }, { status: 400 });
